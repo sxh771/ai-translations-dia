@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>HTML Translator Service</title>
+    <style>
+        #drop_zone {
+            border: 2px dashed #0087F7;
+            border-radius: 5px;
+            background: white;
+            padding: 50px;
+            text-align: center;
+            font-family: Arial, sans-serif;
+            color: #0087F7;
+        }
+    </style>
+</head>
+<body>
+    <h2>DIA is GREAT!!! Welcome to the HTML Translator Service.</h2>
+    <div id="drop_zone">Drag and drop your HTML file here</div>
+    <script>
+        let dropZone = document.getElementById('drop_zone');
+
+        dropZone.addEventListener('dragover', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+        });
+
+        dropZone.addEventListener('drop', function(e) {
+            e.stopPropagation();
+            e.preventDefault();
+            let files = e.dataTransfer.files;
+            let formData = new FormData();
+            formData.append('file', files[0]);
+
+            fetch('/translate', {
+                method: 'POST',
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('File translated successfully!');
+                console.log(data.translated_html);
+                // You can also display the translated HTML content on the page
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    </script>
+</body>
+</html>

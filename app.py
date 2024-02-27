@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from bs4 import BeautifulSoup
 import requests
 import os
@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "DIA is GREAT!!! Welcome to the HTML Translator Service."
+    return render_template('index.html')
 
 def translate_text(text, key, endpoint, location):
     """Translate text using Azure Translation."""
