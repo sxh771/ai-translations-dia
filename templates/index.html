@@ -61,6 +61,7 @@
         <!-- All your content goes here -->
             <h2>DIA is GREAT!!! POC of PDF Translation with AI Integration</h2>
             <div id="drop_zone">Drag and drop your PDF file here</div>
+            <div id="file_name">No file selected</div>
             <h3 class="translated-header">Translated Content:</h3>
             <div id="translated_content"></div>
             <button id="copyButton">Copy to Clipboard</button>
@@ -79,10 +80,13 @@
             e.stopPropagation();
             var data = e.dataTransfer;
             var files = data.files;
+            // Display the file name
+            document.getElementById('file_name').textContent = 'Selected file: ' + files[0].name;
+    
             // Process the file
             var formData = new FormData();
             formData.append('file', files[0]); // Assuming single file upload
-
+    
             fetch('/translate', {
                 method: 'POST',
                 body: formData,
@@ -95,15 +99,17 @@
             })
             .catch(error => console.error('Error:', error));
         });
-
+    
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             document.getElementById('drop_zone').addEventListener(eventName, preventDefaults, false)
         });
-
+    
         function preventDefaults (e) {
-            e.preventDefault()
-            e.stopPropagation()
+            e.preventDefault();
+            e.stopPropagation();
         }
+    
+   
 
         document.getElementById('feedbackForm').onsubmit = function(e) {
             e.preventDefault(); // Prevent default form submission
