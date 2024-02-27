@@ -92,8 +92,9 @@ def translate():
 @app.route('/submit_feedback', methods=['POST'])
 def submit_feedback():
     feedback = request.json['feedback']
-    print("Feedback received:", feedback)
-    # Here, you can add code to save the feedback to a database or send an email
+    with open('feedback.txt', 'a') as file:
+        file.write(f"{feedback}\n")
+    
     return jsonify({"message": "Feedback submitted successfully!"}), 200
 
 
