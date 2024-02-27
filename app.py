@@ -44,19 +44,26 @@ def translate_text(text, key, endpoint, location):
         'X-ClientTraceId': str(uuid.uuid4())
     }
 
-    body = [{'text': text}]
+    # Split text into chunks
+    max_chunk_size = 5000  # Adjust based on the API limit
+    chunks = [text[i:i+max_chunk_size] for i in range(0, len(text), max_chunk_size)]
+    translated_text = ""
 
-    try:
-        response = requests.post(constructed_url, params=params, headers=headers, json=body)
-        if response.status_code == 200:
-            logging.info("Text translation successful.")
-            return response.json()[0]['translations'][0]['text']
-        else:
-            logging.error(f"Translation API error: {response.text}")
+    for chunk in chunks:
+        body = [{'text': chunk}]
+        try:
+            response = requests.post(constructed_url, params=params, headers=headers, json=body)
+            if response.status_code == 200:
+                translated_text += response.json()[0]['translations'][0]['text']
+            else:
+                logging.error(f"Translation API error: {response.text}")
+                return "Error: Unable to translate text"
+        except Exception as e:
+            logging.error(f"Exception during translation: {e}")
             return "Error: Unable to translate text"
-    except Exception as e:
-        logging.error(f"Exception during translation: {e}")
-        return "Error: Unable to translate text"
+    
+    logging.info("Text translation successful.")
+    return translated_text
 
 @app.route('/translate', methods=['POST'])
 def translate():
