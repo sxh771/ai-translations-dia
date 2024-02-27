@@ -14,7 +14,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Welcome to the HTML Translator Service"
+    return "DIA is GREAT!!! Welcome to the HTML Translator Service."
 
 def translate_text(text, key, endpoint, location):
     """Translate text using Azure Translation."""
