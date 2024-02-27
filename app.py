@@ -4,6 +4,12 @@ import requests
 import os
 import uuid
 
+# checking environment variables
+required_env_vars = ['AZURE_TRANSLATION_KEY', 'AZURE_TRANSLATION_ENDPOINT', 'AZURE_TRANSLATION_LOCATION']
+for var in required_env_vars:
+    if not os.environ.get(var):
+        raise EnvironmentError(f"Missing required environment variable: {var}")
+    
 app = Flask(__name__)
 
 @app.route('/')
@@ -30,9 +36,13 @@ def translate_text(text, key, endpoint, location):
 
     body = [{'text': text}]
 
-    response = requests.post(constructed_url, params=params, headers=headers, json=body).json()
-
-    return response[0]['translations'][0]['text']
+    response = requests.post(constructed_url, params=params, headers=headers, json=body)
+    if response.status_code == 200:
+        return response.json()[0]['translations'][0]['text']
+    else:
+        # Handle errors or invalid responses
+        return "Error: Unable to translate text"
+        return response[0]['translations'][0]['text']
 
 def is_translatable(element):
     """Check if the element should be translated."""
@@ -65,7 +75,7 @@ def translate():
     translate_and_replace_large_segments(soup, key, endpoint, location)
 
     # For simplicity, returning the translated HTML content directly
-    return jsonify({"translated_html": str(soup)})
+    return jsonify({"translated_html": str(soup)}), 200, {'Content-Type': 'text/html'}
 
 if __name__ == '__main__':
     app.run(debug=True)
