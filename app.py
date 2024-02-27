@@ -102,47 +102,31 @@ def translate_text(text, key, endpoint, location):
 
 @app.route('/translate', methods=['POST'])
 def translate():
-    logging.info("Received a request to translate a document.")
     input_file = request.files['file']
     file_type = input_file.filename.split('.')[-1].lower()
-    doc = None  # Initialize doc to None
+    doc = None
 
-    # Convert to PDF if necessary
     if file_type == 'txt':
-        logging.debug("Converting txt to PDF.")
         txt_content = input_file.read().decode('utf-8')
-        pdf_file = convert_txt_to_pdf(txt_content)
-        doc = fitz.open("pdf", pdf_file)
+        pdf_buffer = convert_txt_to_pdf(txt_content)
+        doc = fitz.open("pdf", pdf_buffer.read())
     elif file_type == 'pdf':
-        logging.debug("Processing PDF file.")
         doc = fitz.open(stream=input_file.read(), filetype="pdf")
-    elif file_type in ['doc', 'docx', 'ppt']:
-        # Placeholder for conversion logic
-        logging.debug(f"Converting {file_type} to PDF.")
-        # You need to implement conversion logic here
-        # After conversion, you should assign the resulting PDF to `doc`
-        # For example:
-        # pdf_file = convert_to_pdf(input_file, file_type)
-        # doc = fitz.open("pdf", pdf_file)
-        return jsonify({"error": "File type conversion not implemented"}), 400
     else:
-        logging.warning("Unsupported file type submitted for translation.")
         return jsonify({"error": "Unsupported file type"}), 400
 
     if doc is None:
-        logging.error("Failed to convert file to PDF.")
-        return jsonify({"error": "Failed to process file"}), 500
+        return jsonify({"error": "File processing failed"}), 500
 
-    # Proceed with text extraction and translation as before
-    text = ""
-    for page in doc:
-        text += page.get_text()
+    try:
+        text = ""
+        for page in doc:
+            text += page.get_text()
+        # Add your logic to translate text here
+        translated_text = text  # Placeholder for the actual translation logic
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
-    key = os.environ.get('AZURE_TRANSLATION_KEY')
-    endpoint = os.environ.get('AZURE_TRANSLATION_ENDPOINT')
-    location = os.environ.get('AZURE_TRANSLATION_LOCATION')
-    
-    translated_text = translate_text(text, key, endpoint, location)
     return jsonify({"translated_text": translated_text}), 200
 
 @app.route('/submit_feedback', methods=['POST'])
