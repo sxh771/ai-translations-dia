@@ -131,12 +131,16 @@ def translate():
     else:
         logging.info("File processed successfully into a document object.")
 
+
     try:
         text = ""
         for page in doc:
             text += page.get_text()
-        # Add your logic to translate text here
-        translated_text = text  # Placeholder for the actual translation logic
+        # Translate the extracted text to English
+        azure_translation_key = os.environ.get("AZURE_TRANSLATION_KEY")
+        azure_translation_endpoint = os.environ.get("AZURE_TRANSLATION_ENDPOINT")
+        azure_translation_location = os.environ.get("AZURE_TRANSLATION_LOCATION")
+        translated_text = translate_text(text, azure_translation_key, azure_translation_endpoint, azure_translation_location)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
