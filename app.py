@@ -89,5 +89,13 @@ def translate():
     else:
         return jsonify({"error": "Unsupported file type"}), 400
 
+@app.route('/submit_feedback', methods=['POST'])
+def submit_feedback():
+    feedback = request.json['feedback']
+    print("Feedback received:", feedback)
+    # Here, you can add code to save the feedback to a database or send an email
+    return jsonify({"message": "Feedback submitted successfully!"}), 200
+
+
 if __name__ == '__main__':
     app.run(debug=True)

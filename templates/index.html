@@ -8,44 +8,38 @@
             height: 100%;
             margin: 0;
             display: flex;
-            flex-direction: column; /* Stack content vertically */
-            justify-content: center; /* Center content vertically */
-            align-items: center; /* Center content horizontally */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             font-family: Arial, sans-serif;
         }
-    
-        h2 {
+        h2, .translated-header, h3 {
             text-align: center;
-            color: #0087F7; /* Example color */
-            font-size: 24px; /* Example font size */
-            margin-bottom: 20px; /* Space between the heading and the drop zone */
+            color: #0087F7;
         }
-    
-        #drop_zone {
+        #drop_zone, #feedback_form {
             border: 2px dashed #0087F7;
             border-radius: 5px;
             background: white;
-            padding: 50px;
+            padding: 20px;
             text-align: center;
             font-family: Arial, sans-serif;
             color: #0087F7;
-            width: 50%; /* Adjust width as needed */
-            margin-bottom: 20px; /* Space between the drop zone and the translated content header */
+            width: 50%;
+            margin-bottom: 20px;
         }
-
-        .translated-header {
-            font-family: Arial, sans-serif;
-            color: #0087F7;
-            margin-bottom: 10px; /* Space before the translated content */
-        }
-
         #translated_content {
-            width: 60%; /* Adjust width as needed */
+            width: 60%;
             border: 1px solid #ddd;
             padding: 20px;
             background-color: #f0f0f0;
             border-radius: 5px;
-            text-align: left; /* Align translated text to the left */
+            text-align: left;
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            margin-bottom: 10px;
         }
     </style>
 </head>
@@ -54,36 +48,34 @@
     <div id="drop_zone">Drag and drop your PDF file here</div>
     <h3 class="translated-header">Translated Content:</h3>
     <div id="translated_content"></div>
+    <!-- Feedback Form -->
+    <div id="feedback_form">
+        <h3>Submit Your Feedback</h3>
+        <form id="feedbackForm">
+            <textarea id="feedback" name="feedback" rows="4" placeholder="Enter your feedback here..."></textarea><br>
+            <input type="submit" value="Submit Feedback">
+        </form>
+    </div>
     <script>
-
-        let dropZone = document.getElementById('drop_zone');
-
-        dropZone.addEventListener('dragover', function(e) {
-            e.stopPropagation();
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'copy';
-        });
-
-        dropZone.addEventListener('drop', function(e) {
-            e.stopPropagation();
-            e.preventDefault();
-            let files = e.dataTransfer.files;
-            let formData = new FormData();
-            formData.append('file', files[0]);
-
-            fetch('/translate', {
+        // JavaScript for drag-and-drop and feedback form submission
+        document.getElementById('feedbackForm').onsubmit = function(e) {
+            e.preventDefault(); // Prevent default form submission
+            const feedback = document.getElementById('feedback').value;
+            
+            fetch('/submit_feedback', {
                 method: 'POST',
-                body: formData,
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ feedback: feedback }),
             })
             .then(response => response.json())
             .then(data => {
-                alert('File translated successfully!');
-                console.log(data.translated_html);
-                // Display the translated HTML content on the page
-                document.getElementById('translated_content').innerHTML = data.translated_html;
+                alert('Feedback submitted successfully!');
+                document.getElementById('feedback').value = ''; // Clear the textarea
             })
             .catch(error => console.error('Error:', error));
-        });
+        };
     </script>
 </body>
 </html>
