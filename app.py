@@ -1,33 +1,40 @@
 from flask import Flask, request, jsonify, render_template
-from bs4 import BeautifulSoup
 import requests
 import os
 import uuid
 import fitz  # PyMuPDF
 from datetime import datetime
 import logging
+from bs4 import BeautifulSoup
 
-# checking environment variables
+# Configure logging
+logging.basicConfig(filename='app.log', level=logging.DEBUG, 
+                    format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s')
+
+# Check environment variables
 required_env_vars = ['AZURE_TRANSLATION_KEY', 'AZURE_TRANSLATION_ENDPOINT', 'AZURE_TRANSLATION_LOCATION']
 for var in required_env_vars:
     if not os.environ.get(var):
+        logging.error(f"Missing required environment variable: {var}")
         raise EnvironmentError(f"Missing required environment variable: {var}")
-    
+
 app = Flask(__name__)
 
 @app.route('/')
 def home():
+    logging.info("Serving the home page.")
     return render_template('index.html')
 
 def translate_text(text, key, endpoint, location):
     """Translate text using Azure Translation."""
+    logging.debug("Starting text translation.")
     path = '/translate'
     constructed_url = endpoint + path
 
     params = {
         'api-version': '3.0',
-        'from': 'fi',  # Finnish
-        'to': ['en']  # English
+        'from': 'fi',
+        'to': ['en']
     }
 
     headers = {
@@ -39,72 +46,58 @@ def translate_text(text, key, endpoint, location):
 
     body = [{'text': text}]
 
-    response = requests.post(constructed_url, params=params, headers=headers, json=body)
-    if response.status_code == 200:
-        return response.json()[0]['translations'][0]['text']
-    else:
-        # Handle errors or invalid responses
+    try:
+        response = requests.post(constructed_url, params=params, headers=headers, json=body)
+        if response.status_code == 200:
+            logging.info("Text translation successful.")
+            return response.json()[0]['translations'][0]['text']
+        else:
+            logging.error(f"Translation API error: {response.text}")
+            return "Error: Unable to translate text"
+    except Exception as e:
+        logging.error(f"Exception during translation: {e}")
         return "Error: Unable to translate text"
-        return response[0]['translations'][0]['text']
-
-def is_translatable(element):
-    """Check if the element should be translated."""
-    blacklist = ['script', 'style', 'head', 'title', 'meta', '[document]']
-    if element.name in blacklist or element.get('type') == 'text/javascript':
-        return False
-    return True
-
-def translate_and_replace_large_segments(soup, key, endpoint, location):
-    """Translate larger text segments within the HTML."""
-    translatable_elements = soup.find_all(is_translatable)
-
-    for element in translatable_elements:
-        if element.text.strip():  # Check if the element contains non-whitespace text
-            translated_text = translate_text(element.text, key, endpoint, location)
-            element.string = translated_text
-
-
 
 @app.route('/translate', methods=['POST'])
 def translate():
-    # Extract file from request
+    logging.info("Received a request to translate a PDF document.")
     input_file = request.files['file']
     
-    # Check if the file is a PDF
     if input_file and input_file.filename.endswith('.pdf'):
-        # Read the PDF
-        doc = fitz.open(stream=input_file.read(), filetype="pdf")
-        text = ""
-        for page in doc:
-            text += page.get_text()
-        
-        # Translate the extracted text
-        # Use environment variables for Azure credentials
-        key = os.environ.get('AZURE_TRANSLATION_KEY')
-        endpoint = os.environ.get('AZURE_TRANSLATION_ENDPOINT')
-        location = os.environ.get('AZURE_TRANSLATION_LOCATION')
-        
-        translated_text = translate_text(text, key, endpoint, location)
-        
-        # For simplicity, returning the translated text directly
-        return jsonify({"translated_text": translated_text}), 200
-    else:
-        return jsonify({"error": "Unsupported file type"}), 400
+        logging.debug("Starting to process the PDF file.")
+        try:
+            doc = fitz.open(stream=input_file.read(), filetype="pdf")
+            text = ""
+            for page in doc:
+                text += page.get_text()
+            logging.debug("Finished processing the PDF file.")
 
+            key = os.environ.get('AZURE_TRANSLATION_KEY')
+            endpoint = os.environ.get('AZURE_TRANSLATION_ENDPOINT')
+            location = os.environ.get('AZURE_TRANSLATION_LOCATION')
+            
+            translated_text = translate_text(text, key, endpoint, location)
+            return jsonify({"translated_text": translated_text}), 200
+        except Exception as e:
+            logging.error(f"Error processing PDF: {e}")
+            return jsonify({"error": "Failed to process PDF file"}), 500
+    else:
+        logging.warning("Unsupported file type submitted for translation.")
+        return jsonify({"error": "Unsupported file type"}), 400
 
 @app.route('/submit_feedback', methods=['POST'])
 def submit_feedback():
     feedback = request.json['feedback']
-    # Get the current time in a readable format
-    time_submitted = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open('feedback.txt', 'a') as file:
-        # Include the time submitted with the feedback
-        file.write(f"{time_submitted}: {feedback}\n")
-    
-    return jsonify({"message": "Feedback submitted successfully!"}), 200
-
+    logging.info("Received feedback submission.")
+    try:
+        time_submitted = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open('feedback.txt', 'a') as file:
+            file.write(f"{time_submitted}: {feedback}\n")
+        logging.info("Feedback successfully saved.")
+        return jsonify({"message": "Feedback submitted successfully!"}), 200
+    except Exception as e:
+        logging.error(f"Failed to save feedback: {e}")
+        return jsonify({"error": "Failed to submit feedback"}), 500
 
 if __name__ == '__main__':
-    logging.basicConfig(filename='app.log', level=logging.DEBUG, 
-                        format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s')
     app.run(debug=True)
