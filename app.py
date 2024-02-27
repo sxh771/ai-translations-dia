@@ -105,20 +105,33 @@ def translate():
     logging.info("Received a request to translate a document.")
     input_file = request.files['file']
     file_type = input_file.filename.split('.')[-1].lower()
+    doc = None  # Initialize doc to None
 
     # Convert to PDF if necessary
-    if file_type in ['txt', 'doc', 'docx', 'ppt']:
-        logging.debug(f"Converting {file_type} to PDF.")
-        if file_type == 'txt':
-            txt_content = input_file.read().decode('utf-8')
-            pdf_file = convert_txt_to_pdf(txt_content)
-            doc = fitz.open("pdf", pdf_file.read())
-        # Add conversion logic for doc, docx, and ppt here
+    if file_type == 'txt':
+        logging.debug("Converting txt to PDF.")
+        txt_content = input_file.read().decode('utf-8')
+        pdf_file = convert_txt_to_pdf(txt_content)
+        doc = fitz.open("pdf", pdf_file)
     elif file_type == 'pdf':
+        logging.debug("Processing PDF file.")
         doc = fitz.open(stream=input_file.read(), filetype="pdf")
+    elif file_type in ['doc', 'docx', 'ppt']:
+        # Placeholder for conversion logic
+        logging.debug(f"Converting {file_type} to PDF.")
+        # You need to implement conversion logic here
+        # After conversion, you should assign the resulting PDF to `doc`
+        # For example:
+        # pdf_file = convert_to_pdf(input_file, file_type)
+        # doc = fitz.open("pdf", pdf_file)
+        return jsonify({"error": "File type conversion not implemented"}), 400
     else:
         logging.warning("Unsupported file type submitted for translation.")
         return jsonify({"error": "Unsupported file type"}), 400
+
+    if doc is None:
+        logging.error("Failed to convert file to PDF.")
+        return jsonify({"error": "Failed to process file"}), 500
 
     # Proceed with text extraction and translation as before
     text = ""

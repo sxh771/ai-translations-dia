@@ -75,6 +75,31 @@
             </div>
     </div>
 
+    <!-- Add this inside your <body> tag, where you want the spinner to appear -->
+    <div id="loadingSpinner" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <style>
+    .spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border-left-color: #09f;
+    animation: spin 1s ease infinite;
+    }
+
+    @keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+    }
+    </style>
+
     <script>
         document.getElementById('drop_zone').addEventListener('drop', function(e) {
             e.preventDefault();
@@ -112,34 +137,35 @@
     
    
 
-        document.getElementById('feedbackForm').onsubmit = function(e) {
-            e.preventDefault(); // Prevent default form submission
-            const feedback = document.getElementById('feedback').value;
+    document.getElementById('feedbackForm').onsubmit = function(e) {
+        e.preventDefault(); // Prevent default form submission
+        const feedback = document.getElementById('feedback').value;
+        
+        // Show the spinner
+        document.getElementById('loadingSpinner').style.display = 'block';
+        
+        fetch('/submit_feedback', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ feedback: feedback }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert('Feedback submitted successfully!');
+            document.getElementById('feedback').value = ''; // Clear the textarea
             
-            fetch('/submit_feedback', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ feedback: feedback }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert('Feedback submitted successfully!');
-                document.getElementById('feedback').value = ''; // Clear the textarea
-            })
-            .catch(error => console.error('Error:', error));
-        };
-
-        document.getElementById('copyButton').addEventListener('click', function() {
-            const translatedContent = document.getElementById('translated_content').innerText;
-            navigator.clipboard.writeText(translatedContent).then(() => {
-                alert('Content copied to clipboard!');
-            }).catch(err => {
-                console.error('Error in copying text: ', err);
-                alert('Failed to copy text.');
-            });
+            // Hide the spinner
+            document.getElementById('loadingSpinner').style.display = 'none';
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            
+            // Hide the spinner
+            document.getElementById('loadingSpinner').style.display = 'none';
         });
-    </script>
+};
+</script>
 </body>
 </html>
