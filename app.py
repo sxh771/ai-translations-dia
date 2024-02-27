@@ -101,22 +101,34 @@ def translate_text(text, key, endpoint, location):
     return translated_text
 
 @app.route('/translate', methods=['POST'])
+
 def translate():
+    logging.info("Starting translation process.")
     input_file = request.files['file']
     file_type = input_file.filename.split('.')[-1].lower()
+    logging.debug(f"Received file of type: {file_type}")
+
     doc = None
 
     if file_type == 'txt':
+        logging.info("Processing a TXT file.")
         txt_content = input_file.read().decode('utf-8')
         pdf_buffer = convert_txt_to_pdf(txt_content)
-        doc = fitz.open("pdf", pdf_buffer.read())
+        doc = fitz.open("pdf", pdf_buffer)
+        logging.debug("TXT file converted to PDF.")
     elif file_type == 'pdf':
+        logging.info("Processing a PDF file.")
         doc = fitz.open(stream=input_file.read(), filetype="pdf")
+        logging.debug("PDF file opened successfully.")
     else:
+        logging.error(f"Unsupported file type: {file_type}")
         return jsonify({"error": "Unsupported file type"}), 400
 
     if doc is None:
+        logging.error("Failed to process the file into a document object.")
         return jsonify({"error": "File processing failed"}), 500
+    else:
+        logging.info("File processed successfully into a document object.")
 
     try:
         text = ""
