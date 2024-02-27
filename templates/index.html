@@ -38,28 +38,17 @@
             margin-bottom: 20px;
         }
         textarea {
-            width: 100%;
+            width: calc(100% - 30px); /* Adjust based on padding and border */
             margin-bottom: 10px;
         }
-
-    /* Update or remove these styles for feedback_form */
-    #feedback_form {
-        /* position: fixed; Remove or comment out this line */
-        /* bottom: 20px; Remove or comment out this line */
-        /* left: 20px; Remove or comment out this line */
-        width: 300px; /* You can adjust the width as needed */
-        background-color: #f0f0f0;
-        padding: 15px;
-        border-radius: 5px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        margin-top: 20px; /* Add some space above the form */
-    }
-
-    /* Adjust textarea width if necessary */
-    textarea {
-        width: calc(100% - 30px); /* Adjust based on padding and border */
-    }
-
+        #feedback_form {
+            width: 300px; /* Adjust the width as needed */
+            background-color: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-top: 20px; /* Add some space above the form */
+        }
     </style>
 </head>
 <body>
@@ -67,7 +56,7 @@
     <div id="drop_zone">Drag and drop your PDF file here</div>
     <h3 class="translated-header">Translated Content:</h3>
     <div id="translated_content"></div>
-    <!-- Feedback Form -->
+    <button id="copyButton">Copy to Clipboard</button>
     <div id="feedback_form">
         <h3>Submit Your Feedback</h3>
         <form id="feedbackForm">
@@ -75,38 +64,66 @@
             <input type="submit" value="Submit Feedback">
         </form>
     </div>
-<script>
-document.getElementById('drop_zone').addEventListener('drop', function(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    var data = e.dataTransfer;
-    var files = data.files;
-    // Process the file
-    var formData = new FormData();
-    formData.append('file', files[0]); // Assuming single file upload
+    <script>
+        document.getElementById('drop_zone').addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var data = e.dataTransfer;
+            var files = data.files;
+            // Process the file
+            var formData = new FormData();
+            formData.append('file', files[0]); // Assuming single file upload
 
-    fetch('/translate', {
-        method: 'POST',
-        body: formData,
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log(data);
-        // Display the translated text or handle errors
-        document.getElementById('translated_content').textContent = data.translated_text || data.error;
-    })
-    .catch(error => console.error('Error:', error));
-});
+            fetch('/translate', {
+                method: 'POST',
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log(data);
+                // Display the translated text or handle errors
+                document.getElementById('translated_content').textContent = data.translated_text || data.error;
+            })
+            .catch(error => console.error('Error:', error));
+        });
 
-// Prevent default drag behaviors
-['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-  document.getElementById('drop_zone').addEventListener(eventName, preventDefaults, false)
-});
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            document.getElementById('drop_zone').addEventListener(eventName, preventDefaults, false)
+        });
 
-function preventDefaults (e) {
-  e.preventDefault()
-  e.stopPropagation()
-}
-</script>
+        function preventDefaults (e) {
+            e.preventDefault()
+            e.stopPropagation()
+        }
+
+        document.getElementById('feedbackForm').onsubmit = function(e) {
+            e.preventDefault(); // Prevent default form submission
+            const feedback = document.getElementById('feedback').value;
+            
+            fetch('/submit_feedback', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ feedback: feedback }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('Feedback submitted successfully!');
+                document.getElementById('feedback').value = ''; // Clear the textarea
+            })
+            .catch(error => console.error('Error:', error));
+        };
+
+        document.getElementById('copyButton').addEventListener('click', function() {
+            const translatedContent = document.getElementById('translated_content').innerText;
+            navigator.clipboard.writeText(translatedContent).then(() => {
+                alert('Content copied to clipboard!');
+            }).catch(err => {
+                console.error('Error in copying text: ', err);
+                alert('Failed to copy text.');
+            });
+        });
+    </script>
 </body>
 </html>
