@@ -8,19 +8,19 @@
             height: 100%;
             margin: 0;
             display: flex;
-            justify-content: center;
-            align-items: center;
+            flex-direction: column; /* Stack content vertically */
+            justify-content: center; /* Center content vertically */
+            align-items: center; /* Center content horizontally */
             font-family: Arial, sans-serif;
         }
     
         h2 {
             text-align: center;
-            /* Optional: additional styling for the header */
             color: #0087F7; /* Example color */
             font-size: 24px; /* Example font size */
+            margin-bottom: 20px; /* Space between the heading and the drop zone */
         }
     
-        /* Existing styles for other elements */
         #drop_zone {
             border: 2px dashed #0087F7;
             border-radius: 5px;
@@ -29,18 +29,33 @@
             text-align: center;
             font-family: Arial, sans-serif;
             color: #0087F7;
-            margin-top: 20px; /* Adjust as needed */
+            width: 50%; /* Adjust width as needed */
+            margin-bottom: 20px; /* Space between the drop zone and the translated content header */
+        }
+
+        .translated-header {
+            font-family: Arial, sans-serif;
+            color: #0087F7;
+            margin-bottom: 10px; /* Space before the translated content */
+        }
+
+        #translated_content {
+            width: 60%; /* Adjust width as needed */
+            border: 1px solid #ddd;
+            padding: 20px;
+            background-color: #f0f0f0;
+            border-radius: 5px;
+            text-align: left; /* Align translated text to the left */
         }
     </style>
 </head>
 <body>
     <h2>DIA is GREAT!!! POC of PDF Translation with AI Integration</h2>
-    <div id="drop_zone">Drag and drop your HTML file here</div>
-    <!-- Add this div to display the translated content -->
+    <div id="drop_zone">Drag and drop your PDF file here</div>
     <h3 class="translated-header">Translated Content:</h3>
-
     <div id="translated_content"></div>
     <script>
+
         let dropZone = document.getElementById('drop_zone');
 
         dropZone.addEventListener('dragover', function(e) {
