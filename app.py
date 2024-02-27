@@ -7,6 +7,7 @@ from datetime import datetime
 import logging
 from bs4 import BeautifulSoup
 
+from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from io import BytesIO
 
