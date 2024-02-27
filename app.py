@@ -5,7 +5,7 @@ import os
 import uuid
 import fitz  # PyMuPDF
 from datetime import datetime
-
+import logging
 
 # checking environment variables
 required_env_vars = ['AZURE_TRANSLATION_KEY', 'AZURE_TRANSLATION_ENDPOINT', 'AZURE_TRANSLATION_LOCATION']
@@ -105,4 +105,6 @@ def submit_feedback():
 
 
 if __name__ == '__main__':
+    logging.basicConfig(filename='app.log', level=logging.DEBUG, 
+                        format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s')
     app.run(debug=True)
