@@ -18,6 +18,8 @@
 <body>
     <h2>DIA is GREAT!!! Welcome to the HTML Translator Service.</h2>
     <div id="drop_zone">Drag and drop your HTML file here</div>
+    <!-- Add this div to display the translated content -->
+    <div id="translated_content"></div
     <script>
         let dropZone = document.getElementById('drop_zone');
 
@@ -42,7 +44,8 @@
             .then(data => {
                 alert('File translated successfully!');
                 console.log(data.translated_html);
-                // You can also display the translated HTML content on the page
+                // Display the translated HTML content on the page
+                document.getElementById('translated_content').innerHTML = data.translated_html;
             })
             .catch(error => console.error('Error:', error));
         });
