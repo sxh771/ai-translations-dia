@@ -7,6 +7,9 @@ from datetime import datetime
 import logging
 from bs4 import BeautifulSoup
 
+from reportlab.lib.pagesizes import letter
+from io import BytesIO
+
 # Configure logging
 logging.basicConfig(filename='app.log', level=logging.DEBUG, 
                     format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s')
@@ -18,7 +21,22 @@ for var in required_env_vars:
         logging.error(f"Missing required environment variable: {var}")
         raise EnvironmentError(f"Missing required environment variable: {var}")
 
+
 app = Flask(__name__)
+
+def convert_txt_to_pdf(txt_content):
+    """Convert text content to a PDF file object."""
+    buffer = BytesIO()
+    c = canvas.Canvas(buffer, pagesize=letter)
+    text_obj = c.beginText(40, 750)
+    for line in txt_content.split('\n'):
+        text_obj.textLine(line)
+    c.drawText(text_obj)
+    c.showPage()
+    c.save()
+    buffer.seek(0)
+    return buffer
+
 
 @app.route('/')
 def home():
@@ -84,30 +102,35 @@ def translate_text(text, key, endpoint, location):
 
 @app.route('/translate', methods=['POST'])
 def translate():
-    logging.info("Received a request to translate a PDF document.")
+    logging.info("Received a request to translate a document.")
     input_file = request.files['file']
-    
-    if input_file and input_file.filename.endswith('.pdf'):
-        logging.debug("Starting to process the PDF file.")
-        try:
-            doc = fitz.open(stream=input_file.read(), filetype="pdf")
-            text = ""
-            for page in doc:
-                text += page.get_text()
-            logging.debug("Finished processing the PDF file.")
+    file_type = input_file.filename.split('.')[-1].lower()
 
-            key = os.environ.get('AZURE_TRANSLATION_KEY')
-            endpoint = os.environ.get('AZURE_TRANSLATION_ENDPOINT')
-            location = os.environ.get('AZURE_TRANSLATION_LOCATION')
-            
-            translated_text = translate_text(text, key, endpoint, location)
-            return jsonify({"translated_text": translated_text}), 200
-        except Exception as e:
-            logging.error(f"Error processing PDF: {e}")
-            return jsonify({"error": "Failed to process PDF file"}), 500
+    # Convert to PDF if necessary
+    if file_type in ['txt', 'doc', 'docx', 'ppt']:
+        logging.debug(f"Converting {file_type} to PDF.")
+        if file_type == 'txt':
+            txt_content = input_file.read().decode('utf-8')
+            pdf_file = convert_txt_to_pdf(txt_content)
+            doc = fitz.open("pdf", pdf_file.read())
+        # Add conversion logic for doc, docx, and ppt here
+    elif file_type == 'pdf':
+        doc = fitz.open(stream=input_file.read(), filetype="pdf")
     else:
         logging.warning("Unsupported file type submitted for translation.")
         return jsonify({"error": "Unsupported file type"}), 400
+
+    # Proceed with text extraction and translation as before
+    text = ""
+    for page in doc:
+        text += page.get_text()
+
+    key = os.environ.get('AZURE_TRANSLATION_KEY')
+    endpoint = os.environ.get('AZURE_TRANSLATION_ENDPOINT')
+    location = os.environ.get('AZURE_TRANSLATION_LOCATION')
+    
+    translated_text = translate_text(text, key, endpoint, location)
+    return jsonify({"translated_text": translated_text}), 200
 
 @app.route('/submit_feedback', methods=['POST'])
 def submit_feedback():
