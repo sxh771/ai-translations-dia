@@ -4,6 +4,8 @@ import requests
 import os
 import uuid
 import fitz  # PyMuPDF
+from datetime import datetime
+
 
 # checking environment variables
 required_env_vars = ['AZURE_TRANSLATION_KEY', 'AZURE_TRANSLATION_ENDPOINT', 'AZURE_TRANSLATION_LOCATION']
@@ -89,11 +91,15 @@ def translate():
     else:
         return jsonify({"error": "Unsupported file type"}), 400
 
+
 @app.route('/submit_feedback', methods=['POST'])
 def submit_feedback():
     feedback = request.json['feedback']
+    # Get the current time in a readable format
+    time_submitted = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with open('feedback.txt', 'a') as file:
-        file.write(f"{feedback}\n")
+        # Include the time submitted with the feedback
+        file.write(f"{time_submitted}: {feedback}\n")
     
     return jsonify({"message": "Feedback submitted successfully!"}), 200
 
