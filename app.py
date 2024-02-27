@@ -6,6 +6,10 @@ import uuid
 
 app = Flask(__name__)
 
+@app.route('/')
+def home():
+    return "Welcome to the HTML Translator Service"
+
 def translate_text(text, key, endpoint, location):
     """Translate text using Azure Translation."""
     path = '/translate'
