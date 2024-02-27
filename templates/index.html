@@ -58,7 +58,7 @@
         width: calc(100% - 20px); /* Adjust width to fit inside the form */
         margin-bottom: 10px;
     }
-    
+
     </style>
 </head>
 <body>
@@ -74,26 +74,38 @@
             <input type="submit" value="Submit Feedback">
         </form>
     </div>
-    <script>
-        // JavaScript for drag-and-drop and feedback form submission
-        document.getElementById('feedbackForm').onsubmit = function(e) {
-            e.preventDefault(); // Prevent default form submission
-            const feedback = document.getElementById('feedback').value;
-            
-            fetch('/submit_feedback', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ feedback: feedback }),
-            })
-            .then(response => response.json())
-            .then(data => {
-                alert('Feedback submitted successfully!');
-                document.getElementById('feedback').value = ''; // Clear the textarea
-            })
-            .catch(error => console.error('Error:', error));
-        };
-    </script>
+<script>
+document.getElementById('drop_zone').addEventListener('drop', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    var data = e.dataTransfer;
+    var files = data.files;
+    // Process the file
+    var formData = new FormData();
+    formData.append('file', files[0]); // Assuming single file upload
+
+    fetch('/translate', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log(data);
+        // Display the translated text or handle errors
+        document.getElementById('translated_content').textContent = data.translated_text || data.error;
+    })
+    .catch(error => console.error('Error:', error));
+});
+
+// Prevent default drag behaviors
+['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+  document.getElementById('drop_zone').addEventListener(eventName, preventDefaults, false)
+});
+
+function preventDefaults (e) {
+  e.preventDefault()
+  e.stopPropagation()
+}
+</script>
 </body>
 </html>
