@@ -5,13 +5,18 @@
     <title>HTML Translator Service</title>
     <style>
         body, html {
-            height: 100%;
+            min-height: 100%;
             margin: 0;
+            display: block; /* Ensures the page can grow and scroll as needed */
+            font-family: Arial, sans-serif;
+        }
+
+        .content-container {
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            font-family: Arial, sans-serif;
+            min-height: 100vh; /* Use 100vh to fill the viewport, but allow expansion */
         }
         h2, .translated-header, h3 {
             text-align: center;
@@ -52,18 +57,22 @@
     </style>
 </head>
 <body>
-    <h2>DIA is GREAT!!! POC of PDF Translation with AI Integration</h2>
-    <div id="drop_zone">Drag and drop your PDF file here</div>
-    <h3 class="translated-header">Translated Content:</h3>
-    <div id="translated_content"></div>
-    <button id="copyButton">Copy to Clipboard</button>
-    <div id="feedback_form">
-        <h3>Submit Your Feedback</h3>
-        <form id="feedbackForm">
-            <textarea id="feedback" name="feedback" rows="4" placeholder="Enter your feedback here..."></textarea><br>
-            <input type="submit" value="Submit Feedback">
-        </form>
+    <div class="content-container">
+        <!-- All your content goes here -->
+            <h2>DIA is GREAT!!! POC of PDF Translation with AI Integration</h2>
+            <div id="drop_zone">Drag and drop your PDF file here</div>
+            <h3 class="translated-header">Translated Content:</h3>
+            <div id="translated_content"></div>
+            <button id="copyButton">Copy to Clipboard</button>
+            <div id="feedback_form">
+            <h3>Submit Your Feedback</h3>
+            <form id="feedbackForm">
+                <textarea id="feedback" name="feedback" rows="4" placeholder="Enter your feedback here..."></textarea><br>
+                <input type="submit" value="Submit Feedback">
+            </form>
+            </div>
     </div>
+
     <script>
         document.getElementById('drop_zone').addEventListener('drop', function(e) {
             e.preventDefault();
