@@ -4,7 +4,23 @@
     <meta charset="UTF-8">
     <title>HTML Translator Service</title>
     <style>
-        /* Existing styles */
+        body, html {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: Arial, sans-serif;
+        }
+    
+        h2 {
+            text-align: center;
+            /* Optional: additional styling for the header */
+            color: #0087F7; /* Example color */
+            font-size: 24px; /* Example font size */
+        }
+    
+        /* Existing styles for other elements */
         #drop_zone {
             border: 2px dashed #0087F7;
             border-radius: 5px;
@@ -13,27 +29,12 @@
             text-align: center;
             font-family: Arial, sans-serif;
             color: #0087F7;
-        }
-        /* New styles for the translated content area */
-        #translated_content {
-            margin-top: 20px;
-            padding: 20px;
-            background-color: #f0f0f0; /* Light grey background */
-            border: 1px solid #ddd; /* Light grey border */
-            border-radius: 5px;
-            font-family: Arial, sans-serif;
-            color: #333; /* Dark grey text */
-            white-space: pre-wrap; /* Keeps the formatting of the text */
-        }
-        .translated-header {
-            margin-top: 20px;
-            font-family: Arial, sans-serif;
-            color: #0087F7;
+            margin-top: 20px; /* Adjust as needed */
         }
     </style>
 </head>
 <body>
-    <h2>DIA is GREAT!!! Welcome to the HTML Translator Service.</h2>
+    <h2>DIA is GREAT!!! POC of PDF Translation with AI Integration</h2>
     <div id="drop_zone">Drag and drop your HTML file here</div>
     <!-- Add this div to display the translated content -->
     <h3 class="translated-header">Translated Content:</h3>
