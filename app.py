@@ -26,22 +26,39 @@ def home():
     return render_template('index.html')
 
 def translate_text(text, key, endpoint, location):
-    """Translate text using Azure Translation."""
-    logging.debug("Starting text translation.")
-    path = '/translate'
-    constructed_url = endpoint + path
-
-    params = {
-        'api-version': '3.0',
-        'from': 'fi',
-        'to': ['en']
-    }
+    """Detect language and translate text using Azure Translation."""
+    logging.debug("Starting language detection and text translation.")
+    detect_language_path = '/detect'
+    translate_path = '/translate'
+    constructed_detect_url = endpoint + detect_language_path
+    constructed_translate_url = endpoint + translate_path
 
     headers = {
         'Ocp-Apim-Subscription-Key': key,
         'Ocp-Apim-Subscription-Region': location,
         'Content-type': 'application/json',
         'X-ClientTraceId': str(uuid.uuid4())
+    }
+
+    # Detect language
+    body = [{'text': text[:100]}]  # Use a sample of the text for language detection
+    try:
+        detect_response = requests.post(constructed_detect_url, headers=headers, json=body, params={'api-version': '3.0'})
+        if detect_response.status_code == 200:
+            detected_language = detect_response.json()[0]['language']
+            logging.info(f"Detected language: {detected_language}")
+        else:
+            logging.error(f"Language detection API error: {detect_response.text}")
+            return "Error: Unable to detect language"
+    except Exception as e:
+        logging.error(f"Exception during language detection: {e}")
+        return "Error: Unable to detect language"
+
+    # Translate text
+    params = {
+        'api-version': '3.0',
+        'from': detected_language,
+        'to': ['en']
     }
 
     # Split text into chunks
@@ -52,11 +69,11 @@ def translate_text(text, key, endpoint, location):
     for chunk in chunks:
         body = [{'text': chunk}]
         try:
-            response = requests.post(constructed_url, params=params, headers=headers, json=body)
-            if response.status_code == 200:
-                translated_text += response.json()[0]['translations'][0]['text']
+            translate_response = requests.post(constructed_translate_url, params=params, headers=headers, json=body)
+            if translate_response.status_code == 200:
+                translated_text += translate_response.json()[0]['translations'][0]['text']
             else:
-                logging.error(f"Translation API error: {response.text}")
+                logging.error(f"Translation API error: {translate_response.text}")
                 return "Error: Unable to translate text"
         except Exception as e:
             logging.error(f"Exception during translation: {e}")
