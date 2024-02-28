@@ -3,57 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <title>HTML Translator Service</title>
-    <style>
-        body, html {
-            min-height: 100%;
-            margin: 0;
-            display: block; /* Ensures the page can grow and scroll as needed */
-            font-family: Arial, sans-serif;
-        }
 
-        .content-container {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh; /* Use 100vh to fill the viewport, but allow expansion */
-        }
-        h2, .translated-header, h3 {
-            text-align: center;
-            color: #0087F7;
-        }
-        #drop_zone, #feedback_form {
-            border: 2px dashed #0087F7;
-            border-radius: 5px;
-            background: white;
-            padding: 20px;
-            text-align: center;
-            font-family: Arial, sans-serif;
-            color: #0087F7;
-            width: 50%;
-            margin-bottom: 20px;
-        }
-        #translated_content {
-            width: 60%;
-            border: 1px solid #ddd;
-            padding: 20px;
-            background-color: #f0f0f0;
-            border-radius: 5px;
-            text-align: left;
-            margin-bottom: 20px;
-        }
-        textarea {
-            width: calc(100% - 30px); /* Adjust based on padding and border */
-            margin-bottom: 10px;
-        }
+    <style>
+        /* Remove fixed positioning from feedback form */
         #feedback_form {
-            width: 300px; /* Adjust the width as needed */
+            width: 100%; /* Make it full width within its container */
             background-color: #f0f0f0;
-            padding: 15px;
+            padding: 20px;
             border-radius: 5px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
             margin-top: 20px; /* Add some space above the form */
         }
+
+        textarea, input[type="text"], input[type="submit"] {
+        font-size: 1.1em; /* Increase font size */
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #ddd;
+        width: calc(100% - 22px); /* Adjust width to account for padding and border */
+    }
+    
+        /* Additional styling for improved UI */
+        body, html {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+    
+        .content-container {
+            max-width: 800px;
+            margin: auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+    
+        input[type="submit"], button {
+            background-color: #0087F7;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 20px;
+        }
+    
+        input[type="submit"]:hover, button:hover {
+            background-color: #0056b3;
+        }
+
+
     </style>
 </head>
 <body>
@@ -69,7 +70,7 @@
                 <input type="submit" value="Translate Text">
             </form>
 
-            <div id="file_name">No file selected</div>
+            <!-- <div id="file_name">No file selected</div> -->
             <h3 class="translated-header">Translated Content:</h3>
             <div id="translated_content"></div>
             <button id="copyButton">Copy to Clipboard</button>
@@ -169,6 +170,20 @@
             document.getElementById('loadingSpinner').style.display = 'none';
         });
 };
+
+    document.getElementById('copyButton').addEventListener('click', function() {
+            const translatedText = document.getElementById('translated_content').textContent;
+            if (navigator.clipboard && translatedText) {
+                navigator.clipboard.writeText(translatedText).then(() => {
+                    alert('Translated text copied to clipboard!');
+                }).catch(err => {
+                    console.error('Error in copying text: ', err);
+                });
+            } else {
+                alert('Clipboard functionality not available.');
+            }
+        });
+
 </script>
 </body>
 </html>
