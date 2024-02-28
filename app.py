@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify, render_template
 import requests
 import os
 import uuid
-import fitz  # PyMuPDF
+# import fitz  # PyMuPDF
 from datetime import datetime
 import logging
 from bs4 import BeautifulSoup
@@ -102,49 +102,23 @@ def translate_text(text, key, endpoint, location):
     return translated_text
 
 @app.route('/translate', methods=['POST'])
-
 def translate():
     logging.info("Starting translation process.")
-    input_file = request.files['file']
-    file_type = input_file.filename.split('.')[-1].lower()
-    logging.debug(f"Received file of type: {file_type}")
+    data = request.get_json()
+    text = data['text']
 
-    doc = None
-
-    if file_type == 'txt':
-        logging.info("Processing a TXT file.")
-        txt_content = input_file.read().decode('utf-8')
-        pdf_buffer = convert_txt_to_pdf(txt_content)
-        doc = fitz.open("pdf", pdf_buffer)
-        logging.debug("TXT file converted to PDF.")
-    elif file_type == 'pdf':
-        logging.info("Processing a PDF file.")
-        doc = fitz.open(stream=input_file.read(), filetype="pdf")
-        logging.debug("PDF file opened successfully.")
-    else:
-        logging.error(f"Unsupported file type: {file_type}")
-        return jsonify({"error": "Unsupported file type"}), 400
-
-    if doc is None:
-        logging.error("Failed to process the file into a document object.")
-        return jsonify({"error": "File processing failed"}), 500
-    else:
-        logging.info("File processed successfully into a document object.")
-
-
+    # Assuming you have a function translate_text that handles the translation
+    azure_translation_key = os.environ.get("AZURE_TRANSLATION_KEY")
+    azure_translation_endpoint = os.environ.get("AZURE_TRANSLATION_ENDPOINT")
+    azure_translation_location = os.environ.get("AZURE_TRANSLATION_LOCATION")
     try:
-        text = ""
-        for page in doc:
-            text += page.get_text()
-        # Translate the extracted text to English
-        azure_translation_key = os.environ.get("AZURE_TRANSLATION_KEY")
-        azure_translation_endpoint = os.environ.get("AZURE_TRANSLATION_ENDPOINT")
-        azure_translation_location = os.environ.get("AZURE_TRANSLATION_LOCATION")
         translated_text = translate_text(text, azure_translation_key, azure_translation_endpoint, azure_translation_location)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"Translation failed: {e}")
+        return jsonify({"error": "Translation failed"}), 500
 
     return jsonify({"translated_text": translated_text}), 200
+
 
 @app.route('/submit_feedback', methods=['POST'])
 def submit_feedback():

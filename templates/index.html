@@ -59,9 +59,16 @@
 <body>
     <div class="content-container">
         <!-- All your content goes here -->
-            <h2>DIA is GREAT!!!</h2>
-            <h2>Proof of Concept for Translation of PDF and TXT Files Using AI Integration.</h2>
-            <div id="drop_zone">Drag and drop your PDF file here</div>
+            <h2>DIA is GREAT!!! Do you Agree?</h2>
+            <h2>Proof of Concept for AI-Powered Translation</h2>
+            <!-- <div id="drop_zone">Drag and drop your PDF file here</div> -->
+            
+            <!-- adding a text form for user input -->
+            <form id="textInputForm">
+                <textarea id="text_input" name="text_input" rows="10" placeholder="Enter your text here..."></textarea><br>
+                <input type="submit" value="Translate Text">
+            </form>
+
             <div id="file_name">No file selected</div>
             <h3 class="translated-header">Translated Content:</h3>
             <div id="translated_content"></div>
@@ -101,39 +108,35 @@
     </style>
 
     <script>
-        document.getElementById('drop_zone').addEventListener('drop', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            var data = e.dataTransfer;
-            var files = data.files;
-            // Display the file name
-            document.getElementById('file_name').textContent = 'Selected file: ' + files[0].name;
-    
-            // Process the file
-            var formData = new FormData();
-            formData.append('file', files[0]); // Assuming single file upload
-    
-            fetch('/translate', {
-                method: 'POST',
-                body: formData,
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log(data);
-                // Display the translated text or handle errors
-                document.getElementById('translated_content').textContent = data.translated_text || data.error;
-            })
-            .catch(error => console.error('Error:', error));
+    document.getElementById('textInputForm').onsubmit = function(e) {
+        e.preventDefault(); // Prevent default form submission
+        const textInput = document.getElementById('text_input').value;
+        
+        // Show the spinner
+        document.getElementById('loadingSpinner').style.display = 'block';
+        
+        fetch('/translate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text: textInput }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Display the translated text or handle errors
+            document.getElementById('translated_content').textContent = data.translated_text || data.error;
+            
+            // Hide the spinner
+            document.getElementById('loadingSpinner').style.display = 'none';
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            
+            // Hide the spinner
+            document.getElementById('loadingSpinner').style.display = 'none';
         });
-    
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            document.getElementById('drop_zone').addEventListener(eventName, preventDefaults, false)
-        });
-    
-        function preventDefaults (e) {
-            e.preventDefault();
-            e.stopPropagation();
-        }
+    };
     
    
 
