@@ -1,6 +1,6 @@
+import logging
 from flask import Flask, request, jsonify, render_template
 import os
-import logging
 import requests
 import pyodbc
 from datetime import datetime
@@ -142,4 +142,5 @@ def translate_and_insert():
         return jsonify({"error": "Failed to translate and insert data"}), 500
 
 if __name__ == '__main__':
+    logger.info("Starting the Flask application...")
     app.run(debug=True)
