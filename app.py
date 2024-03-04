@@ -1,4 +1,5 @@
 import logging
+from logging.handlers import RotatingFileHandler
 from flask import Flask, request, jsonify, render_template
 import os
 import requests
@@ -7,8 +8,20 @@ from datetime import datetime
 import uuid
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Create a file handler and set level to debug
+log_file_path = os.path.join(os.getcwd(), 'app.log')
+file_handler = RotatingFileHandler(log_file_path, maxBytes=1024 * 1024 * 100, backupCount=10)  # 100MB per file, max 10 files
+file_handler.setLevel(logging.INFO)
+
+# Create a logging format
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+
+# Add the handlers to the logger
+logger.addHandler(file_handler)
 
 app = Flask(__name__)
 os.environ['CURL_CA_BUNDLE'] = ""
@@ -29,18 +42,18 @@ password = os.environ.get("DB_PASSWORD")
 required_env_vars = ['AZURE_TRANSLATION_KEY', 'AZURE_TRANSLATION_ENDPOINT', 'AZURE_TRANSLATION_LOCATION']
 for var in required_env_vars:
     if not os.environ.get(var):
-        logging.error(f"Missing required environment variable: {var}")
+        logger.error(f"Missing required environment variable: {var}")
         raise EnvironmentError(f"Missing required environment variable: {var}")
 
 # Default page.
 @app.route('/')
 def home():
-    logging.info("Serving the home page.")
+    logger.info("Serving the home page.")
     return render_template('index.html')
 
 def translate_text(text, azure_translation_key, azure_translation_endpoint, azure_translation_location):
     """Detect language and translate text using Azure Translation."""
-    logging.debug("Starting language detection and text translation.")
+    logger.info("Starting language detection and text translation.")
     detect_language_path = '/detect'
     translate_path = '/translate'
     constructed_detect_url = azure_translation_endpoint + detect_language_path
@@ -61,10 +74,10 @@ def translate_text(text, azure_translation_key, azure_translation_endpoint, azur
     body = [{'text': text[:100]}]  # Use a sample of the text for language detection
     detect_response = session.post(constructed_detect_url, headers=headers, json=body, params={'api-version': '3.0'})
     if detect_response.status_code != 200:
-        logging.error(f"Language detection API error: {detect_response.text}")
+        logger.error(f"Language detection API error: {detect_response.text}")
         raise Exception("Error: Unable to detect language")
     detected_language = detect_response.json()[0]['language']
-    logging.info(f"Detected language: {detected_language}")
+    logger.info(f"Detected language: {detected_language}")
 
     # Translate text
     params = {
@@ -74,10 +87,10 @@ def translate_text(text, azure_translation_key, azure_translation_endpoint, azur
     }
     translate_response = session.post(constructed_translate_url, params=params, headers=headers, json=[{'text': text}])
     if translate_response.status_code != 200:
-        logging.error(f"Translation API error: {translate_response.text}")
+        logger.error(f"Translation API error: {translate_response.text}")
         raise Exception("Error: Unable to translate text")
     translated_text = translate_response.json()[0]['translations'][0]['text']
-    logging.info("Text translation successful.")
+    logger.info("Text translation successful.")
 
     return translated_text, detected_language
 
@@ -98,13 +111,13 @@ def ensure_table_exists(conn_str):
             with conn.cursor() as cursor:
                 cursor.execute(create_table_query)
                 conn.commit()
-                logging.info("Checked/created table 'TranslatedDocuments'.")
+                logger.info("Checked/created table 'TranslatedDocuments'.")
     except Exception as e:
-        logging.error(f"Failed to check/create table: {e}")
+        logger.error(f"Failed to check/create table: {e}")
 
 @app.route('/translate_and_insert', methods=['POST'])
 def translate_and_insert():
-    logging.info("Starting translation and insertion process.")
+    logger.info("Starting translation and insertion process.")
     data = request.get_json()
     input_text = data['text']
     output_language = 'en'  # Since we're translating to English
@@ -138,7 +151,7 @@ def translate_and_insert():
         return jsonify({"message": "Data inserted successfully", "translated_text": translated_text, "detected_language": detected_language, "output_language": output_language}), 200
 
     except Exception as e:
-        logging.error(f"Failed to translate and insert data: {e}")
+        logger.error(f"Failed to translate and insert data: {e}")
         return jsonify({"error": "Failed to translate and insert data"}), 500
 
 if __name__ == '__main__':
