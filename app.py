@@ -6,6 +6,10 @@ import pyodbc
 from datetime import datetime
 import uuid
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
 os.environ['CURL_CA_BUNDLE'] = ""
 
