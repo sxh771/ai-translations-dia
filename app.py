@@ -8,7 +8,7 @@ from datetime import datetime
 import uuid
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # Create a file handler and set level to debug
@@ -115,6 +115,24 @@ def ensure_table_exists(conn_str):
     except Exception as e:
         logger.error(f"Failed to check/create table: {e}")
 
+def ensure_feedback_table_exists(conn_str):
+    create_feedback_table_query = """
+    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Feedback')
+    CREATE TABLE Feedback (
+        id INT PRIMARY KEY IDENTITY(1,1),
+        feedback_text NVARCHAR(MAX),
+        created_at DATETIME2 DEFAULT GETDATE()
+    )
+    """
+    try:
+        with pyodbc.connect(conn_str) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(create_feedback_table_query)
+                conn.commit()
+                logger.info("Checked/created table 'Feedback'.")
+    except Exception as e:
+        logger.error(f"Failed to check/create 'Feedback' table: {e}")
+
 @app.route('/translate_and_insert', methods=['POST'])
 def translate_and_insert():
     logger.info("Starting translation and insertion process.")
@@ -153,6 +171,41 @@ def translate_and_insert():
     except Exception as e:
         logger.error(f"Failed to translate and insert data: {e}")
         return jsonify({"error": "Failed to translate and insert data"}), 500
+
+@app.route('/submit_feedback', methods=['POST'])
+def submit_feedback():
+    data = request.get_json()
+    feedback_text = data['feedback']
+
+    try:
+        # Define your connection string (adjusted for your application's needs)
+        conn_str = (
+            f"DRIVER={{{driver}}};"
+            f"SERVER={server};"
+            f"DATABASE={database};"
+            f"UID={username};"
+            f"PWD={password};"
+            "TrustServerCertificate=yes;"
+            "Connection Timeout=30;"
+        )
+
+        # Ensure the Feedback table exists before inserting data
+        ensure_feedback_table_exists(conn_str)
+
+        # Connect to the database
+        with pyodbc.connect(conn_str) as conn:
+            with conn.cursor() as cursor:
+                # Insert feedback into the database
+                insert_query = """INSERT INTO Feedback (feedback_text) VALUES (?)"""
+                cursor.execute(insert_query, (feedback_text,))
+                conn.commit()
+
+        logger.info("Feedback successfully saved.")
+        return jsonify({"message": "Feedback submitted successfully"}), 200
+
+    except Exception as e:
+        logger.error(f"Failed to submit feedback: {e}")
+        return jsonify({"error": "Failed to submit feedback"}), 500
 
 if __name__ == '__main__':
     logger.info("Starting the Flask application...")
