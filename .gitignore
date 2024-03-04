@@ -6,7 +6,10 @@ __pycache__/
 # C extensions
 *.so
 test.ipynb
+test.py
 
+# to collect thoughts
+notes.txt
 # Image file extensions to ignore
 images/
 

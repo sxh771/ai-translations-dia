@@ -1,19 +1,25 @@
 from flask import Flask, request, jsonify, render_template
-import requests
 import os
-import uuid
-# import fitz  # PyMuPDF
-from datetime import datetime
 import logging
-from bs4 import BeautifulSoup
+import requests
+import pyodbc
+from datetime import datetime
+import uuid
 
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
-from io import BytesIO
+app = Flask(__name__)
+os.environ['CURL_CA_BUNDLE'] = ""
 
-# Configure logging
-logging.basicConfig(filename='app.log', level=logging.DEBUG, 
-                    format='%(asctime)s %(levelname)s %(name)s %(threadName)s : %(message)s')
+# Defining Azure AI Translation connections.
+azure_translation_key = os.environ.get("AZURE_TRANSLATION_KEY")
+azure_translation_endpoint = os.environ.get("AZURE_TRANSLATION_ENDPOINT")
+azure_translation_location = os.environ.get("AZURE_TRANSLATION_LOCATION")
+
+# Connection details from the Azure SQL Database
+driver = 'ODBC Driver 18 for SQL Server'
+server = os.environ.get("DB_SERVER")
+database = os.environ.get("DB_NAME")
+username = os.environ.get("DB_USERNAME")
+password = os.environ.get("DB_PASSWORD")
 
 # Check environment variables
 required_env_vars = ['AZURE_TRANSLATION_KEY', 'AZURE_TRANSLATION_ENDPOINT', 'AZURE_TRANSLATION_LOCATION']
@@ -22,56 +28,39 @@ for var in required_env_vars:
         logging.error(f"Missing required environment variable: {var}")
         raise EnvironmentError(f"Missing required environment variable: {var}")
 
-
-app = Flask(__name__)
-
-def convert_txt_to_pdf(txt_content):
-    """Convert text content to a PDF file object."""
-    buffer = BytesIO()
-    c = canvas.Canvas(buffer, pagesize=letter)
-    text_obj = c.beginText(40, 750)
-    for line in txt_content.split('\n'):
-        text_obj.textLine(line)
-    c.drawText(text_obj)
-    c.showPage()
-    c.save()
-    buffer.seek(0)
-    return buffer
-
-
+# Default page.
 @app.route('/')
 def home():
     logging.info("Serving the home page.")
     return render_template('index.html')
 
-def translate_text(text, key, endpoint, location):
+def translate_text(text, azure_translation_key, azure_translation_endpoint, azure_translation_location):
     """Detect language and translate text using Azure Translation."""
     logging.debug("Starting language detection and text translation.")
     detect_language_path = '/detect'
     translate_path = '/translate'
-    constructed_detect_url = endpoint + detect_language_path
-    constructed_translate_url = endpoint + translate_path
+    constructed_detect_url = azure_translation_endpoint + detect_language_path
+    constructed_translate_url = azure_translation_endpoint + translate_path
+
+    # Create a session with SSL verification disabled
+    session = requests.Session()
+    session.verify = False
 
     headers = {
-        'Ocp-Apim-Subscription-Key': key,
-        'Ocp-Apim-Subscription-Region': location,
+        'Ocp-Apim-Subscription-Key': azure_translation_key,
+        'Ocp-Apim-Subscription-Region': azure_translation_location,
         'Content-type': 'application/json',
         'X-ClientTraceId': str(uuid.uuid4())
     }
 
     # Detect language
     body = [{'text': text[:100]}]  # Use a sample of the text for language detection
-    try:
-        detect_response = requests.post(constructed_detect_url, headers=headers, json=body, params={'api-version': '3.0'})
-        if detect_response.status_code == 200:
-            detected_language = detect_response.json()[0]['language']
-            logging.info(f"Detected language: {detected_language}")
-        else:
-            logging.error(f"Language detection API error: {detect_response.text}")
-            return "Error: Unable to detect language"
-    except Exception as e:
-        logging.error(f"Exception during language detection: {e}")
-        return "Error: Unable to detect language"
+    detect_response = session.post(constructed_detect_url, headers=headers, json=body, params={'api-version': '3.0'})
+    if detect_response.status_code != 200:
+        logging.error(f"Language detection API error: {detect_response.text}")
+        raise Exception("Error: Unable to detect language")
+    detected_language = detect_response.json()[0]['language']
+    logging.info(f"Detected language: {detected_language}")
 
     # Translate text
     params = {
@@ -79,60 +68,74 @@ def translate_text(text, key, endpoint, location):
         'from': detected_language,
         'to': ['en']
     }
-
-    # Split text into chunks
-    max_chunk_size = 5000  # Adjust based on the API limit
-    chunks = [text[i:i+max_chunk_size] for i in range(0, len(text), max_chunk_size)]
-    translated_text = ""
-
-    for chunk in chunks:
-        body = [{'text': chunk}]
-        try:
-            translate_response = requests.post(constructed_translate_url, params=params, headers=headers, json=body)
-            if translate_response.status_code == 200:
-                translated_text += translate_response.json()[0]['translations'][0]['text']
-            else:
-                logging.error(f"Translation API error: {translate_response.text}")
-                return "Error: Unable to translate text"
-        except Exception as e:
-            logging.error(f"Exception during translation: {e}")
-            return "Error: Unable to translate text"
-    
+    translate_response = session.post(constructed_translate_url, params=params, headers=headers, json=[{'text': text}])
+    if translate_response.status_code != 200:
+        logging.error(f"Translation API error: {translate_response.text}")
+        raise Exception("Error: Unable to translate text")
+    translated_text = translate_response.json()[0]['translations'][0]['text']
     logging.info("Text translation successful.")
-    return translated_text
 
-@app.route('/translate', methods=['POST'])
-def translate():
-    logging.info("Starting translation process.")
+    return translated_text, detected_language
+
+def ensure_table_exists(conn_str):
+    create_table_query = """
+    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'TranslatedDocuments')
+    CREATE TABLE TranslatedDocuments (
+        id INT PRIMARY KEY IDENTITY(1,1),
+        input_text NVARCHAR(MAX),
+        detected_language NVARCHAR(100),
+        translated_text NVARCHAR(MAX),
+        output_language NVARCHAR(100),
+        created_at DATETIME2 DEFAULT GETDATE()
+    )
+    """
+    try:
+        with pyodbc.connect(conn_str) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(create_table_query)
+                conn.commit()
+                logging.info("Checked/created table 'TranslatedDocuments'.")
+    except Exception as e:
+        logging.error(f"Failed to check/create table: {e}")
+
+@app.route('/translate_and_insert', methods=['POST'])
+def translate_and_insert():
+    logging.info("Starting translation and insertion process.")
     data = request.get_json()
-    text = data['text']
+    input_text = data['text']
+    output_language = 'en'  # Since we're translating to English
 
-    # Assuming you have a function translate_text that handles the translation
-    azure_translation_key = os.environ.get("AZURE_TRANSLATION_KEY")
-    azure_translation_endpoint = os.environ.get("AZURE_TRANSLATION_ENDPOINT")
-    azure_translation_location = os.environ.get("AZURE_TRANSLATION_LOCATION")
     try:
-        translated_text = translate_text(text, azure_translation_key, azure_translation_endpoint, azure_translation_location)
+        translated_text, detected_language = translate_text(input_text, azure_translation_key, azure_translation_endpoint, azure_translation_location)
+
+        # Define your connection string (adjusted for your application's needs)
+        conn_str = (
+            f"DRIVER={{{driver}}};"
+            f"SERVER={server};"
+            f"DATABASE={database};"
+            f"UID={username};"
+            f"PWD={password};"
+            "TrustServerCertificate=yes;"
+            "Connection Timeout=500;"
+        )
+
+        # Ensure the table exists before inserting data
+        ensure_table_exists(conn_str)
+
+        # Connect to the database
+        connection = pyodbc.connect(conn_str)
+        cursor = connection.cursor()
+
+        # Insert data into the database
+        insert_query = """INSERT INTO TranslatedDocuments (input_text, detected_language, translated_text, output_language) VALUES (?, ?, ?, ?)"""
+        cursor.execute(insert_query, (input_text, detected_language, translated_text, output_language))
+        connection.commit()
+
+        return jsonify({"message": "Data inserted successfully", "translated_text": translated_text, "detected_language": detected_language, "output_language": output_language}), 200
+
     except Exception as e:
-        logging.error(f"Translation failed: {e}")
-        return jsonify({"error": "Translation failed"}), 500
-
-    return jsonify({"translated_text": translated_text}), 200
-
-
-@app.route('/submit_feedback', methods=['POST'])
-def submit_feedback():
-    feedback = request.json['feedback']
-    logging.info("Received feedback submission.")
-    try:
-        time_submitted = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        with open('feedback.txt', 'a') as file:
-            file.write(f"{time_submitted}: {feedback}\n")
-        logging.info("Feedback successfully saved.")
-        return jsonify({"message": "Feedback submitted successfully!"}), 200
-    except Exception as e:
-        logging.error(f"Failed to save feedback: {e}")
-        return jsonify({"error": "Failed to submit feedback"}), 500
+        logging.error(f"Failed to translate and insert data: {e}")
+        return jsonify({"error": "Failed to translate and insert data"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

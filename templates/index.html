@@ -57,6 +57,14 @@
         input[type="submit"]:hover, button:hover {
             background-color: #0056b3;
         }
+                /* Center the title */
+                .centered-title {
+            text-align: center; /* Center text horizontally */
+            width: 100%; /* Ensure it spans the full width */
+        }
+
+        
+
 
 
     </style>
@@ -64,7 +72,8 @@
 <body>
     <div class="content-container">
         <!-- All your content goes here -->
-            <h2>DIA is GREAT!!! Do you Agree?</h2>
+            <!-- <h2>DIA is GREAT!!! Do you Agree?</h2> -->
+            <h1 class="centered-title">DIA</h1>
             <h2>Proof of Concept for AI-Powered Translation</h2>
             <!-- <div id="drop_zone">Drag and drop your PDF file here</div> -->
             
@@ -120,12 +129,15 @@
         // Show the spinner
         document.getElementById('loadingSpinner').style.display = 'block';
         
-        fetch('/translate', {
+        fetch('/translate_and_insert', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ text: textInput }),
+            body: JSON.stringify({
+            text: textInput,
+            table_name: "TranslatedDocuments" 
+        }),
         })
         .then(response => response.json())
         .then(data => {
