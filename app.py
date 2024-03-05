@@ -51,7 +51,7 @@ def home():
     logger.info("Serving the home page.")
     return render_template('index.html')
 
-def translate_text(text, azure_translation_key, azure_translation_endpoint, azure_translation_location):
+def translate_text(text, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language):
     """Detect language and translate text using Azure Translation."""
     logger.info("Starting language detection and text translation.")
     detect_language_path = '/detect'
@@ -83,7 +83,7 @@ def translate_text(text, azure_translation_key, azure_translation_endpoint, azur
     params = {
         'api-version': '3.0',
         'from': detected_language,
-        'to': ['en']
+        'to': [target_language]
     }
     translate_response = session.post(constructed_translate_url, params=params, headers=headers, json=[{'text': text}])
     if translate_response.status_code != 200:
@@ -138,10 +138,10 @@ def translate_and_insert():
     logger.info("Starting translation and insertion process.")
     data = request.get_json()
     input_text = data['text']
-    output_language = 'en'  # Since we're translating to English
+    output_language = data['language']  # Since we're allowing users to select the language
 
     try:
-        translated_text, detected_language = translate_text(input_text, azure_translation_key, azure_translation_endpoint, azure_translation_location)
+        translated_text, detected_language = translate_text(input_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
 
         # Define your connection string (adjusted for your application's needs)
         conn_str = (
