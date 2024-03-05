@@ -97,23 +97,33 @@ def translate_text(text, azure_translation_key, azure_translation_endpoint, azur
 def ensure_table_exists(conn_str):
     create_table_query = """
     IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'TranslatedDocuments')
-    CREATE TABLE TranslatedDocuments (
-        id INT PRIMARY KEY IDENTITY(1,1),
-        input_text NVARCHAR(MAX),
-        detected_language NVARCHAR(100),
-        translated_text NVARCHAR(MAX),
-        output_language NVARCHAR(100),
-        created_at DATETIME2 DEFAULT GETDATE()
-    )
+    BEGIN
+        CREATE TABLE TranslatedDocuments (
+            id INT PRIMARY KEY IDENTITY(1,1),
+            input_text NVARCHAR(MAX),
+            detected_language NVARCHAR(100),
+            translated_text NVARCHAR(MAX),
+            output_language NVARCHAR(100),
+            created_at DATETIME2 DEFAULT GETDATE()
+        )
+    END
+    ELSE
+    BEGIN
+        IF NOT EXISTS (SELECT * FROM sys.columns 
+                       WHERE Name = N'created_at' AND Object_ID = Object_ID(N'TranslatedDocuments'))
+        BEGIN
+            ALTER TABLE TranslatedDocuments ADD created_at DATETIME2 DEFAULT GETDATE()
+        END
+    END
     """
     try:
         with pyodbc.connect(conn_str) as conn:
             with conn.cursor() as cursor:
                 cursor.execute(create_table_query)
                 conn.commit()
-                logger.info("Checked/created table 'TranslatedDocuments'.")
+                logger.info("Checked/created/updated table 'TranslatedDocuments'.")
     except Exception as e:
-        logger.error(f"Failed to check/create table: {e}")
+        logger.error(f"Failed to check/create/update table: {e}")
 
 def ensure_feedback_table_exists(conn_str):
     create_feedback_table_query = """
