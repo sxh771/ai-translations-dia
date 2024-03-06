@@ -63,9 +63,22 @@
             width: 100%; /* Ensure it spans the full width */
         }
 
-        
-
-
+        .feedback-options {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
+        .feedback-btn {
+            padding: 10px 20px;
+            background-color: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+            color: black; /* Make the texts for these options black */
+        }
+        .feedback-btn:hover {
+            background-color: #e0e0e0;
+        }
 
     </style>
 </head>
@@ -92,14 +105,14 @@
             <!-- I am going to call Azure AI translator Model A -->
             <h3 class="translated-header">Translated by Model A</h3>
             <div id="translated_content"></div>
-            <button id="copyButton">Copy to Clipboard</button>
-            <div id="feedback_form">
-            <h3>Submit Your Feedback</h3>
-            <form id="feedbackForm">
-                <textarea id="feedback" name="feedback" rows="4" placeholder="Enter your feedback here..."></textarea><br>
-                <input type="submit" value="Submit Feedback">
-            </form>
+            <div id="feedback_options" class="feedback-options">
+                <button id="optionA" class="feedback-btn">A is better</button>
+                <button id="optionB" class="feedback-btn">B is better</button>
+                <button id="optionC" class="feedback-btn">Tie</button>
+                <button id="optionD" class="feedback-btn">Both are bad</button>
             </div>
+            <!-- Removed duplicate feedback options from the end of the page -->
+
     </div>
 
     <!-- Add this inside your <body> tag, where you want the spinner to appear -->
@@ -195,19 +208,12 @@
         });
 };
 
-    document.getElementById('copyButton').addEventListener('click', function() {
-            const translatedText = document.getElementById('translated_content').textContent;
-            if (navigator.clipboard && translatedText) {
-                navigator.clipboard.writeText(translatedText).then(() => {
-                    alert('Translated text copied to clipboard!');
-                }).catch(err => {
-                    console.error('Error in copying text: ', err);
-                });
-            } else {
-                alert('Clipboard functionality not available.');
-            }
+    document.querySelectorAll('.feedback-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            alert('Feedback: ' + this.textContent);
+            // Here you can add further actions, like sending feedback to the server
         });
-
+    });
 </script>
 </body>
 </html>
