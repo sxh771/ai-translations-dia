@@ -104,14 +104,22 @@
             </form>
             <!-- I am going to call Azure AI translator Model A -->
             <h3 class="translated-header">Translated by Model A</h3>
-            <div id="translated_content"></div>
+            <div id="translated_content" class="translated-text-box" readonly>
+            </div>
             <div id="feedback_options" class="feedback-options">
                 <button id="optionA" class="feedback-btn">A is better</button>
                 <button id="optionB" class="feedback-btn">B is better</button>
                 <button id="optionC" class="feedback-btn">Tie</button>
                 <button id="optionD" class="feedback-btn">Both are bad</button>
             </div>
-            <!-- Removed duplicate feedback options from the end of the page -->
+            <!-- Feedback Form Section -->
+            <form id="feedbackForm">
+                <textarea id="feedback" name="feedback" rows="4" placeholder="Enter your feedback here..."></textarea><br>
+                <input type="submit" value="Submit Feedback">
+            </form>
+            <div id="loadingSpinner" style="display: none;">
+                <!-- Spinner goes here -->
+            </div>
 
     </div>
 
