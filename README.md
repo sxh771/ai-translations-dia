@@ -1,58 +1,72 @@
 # HTML Translator Service
 
-This repository contains a Flask application designed to translate HTML content from Finnish to English using Azure's Translation service. It's a simple yet powerful tool for translating large segments of text within HTML files, making it easier to localize web content for different audiences.
+Welcome to the HTML Translator Service, a Flask-based application designed to streamline the process of translating HTML content from Finnish to English. Leveraging the power of Azure's Translation service, this tool is perfect for developers and content creators looking to efficiently localize web content for diverse audiences.
 
 ## Features
 
-- **HTML Content Translation**: Translates all translatable text within an HTML file from Finnish to English.
-- **Azure Translation Integration**: Utilizes Azure's Translation service for accurate and reliable translations.
-- **Filtering Non-Translatable Elements**: Ignores script, style, head, title, meta, and document tags to ensure only relevant text is translated.
+- **HTML Content Translation**: Seamlessly translates Finnish text within HTML files to English, ensuring your web content is accessible to a wider audience.
+- **Azure Translation Integration**: Utilizes Azure's Translation service for high-quality, reliable translations.
+- **Smart Content Filtering**: Excludes non-translatable elements (e.g., script, style, head, title, meta, and document tags) to focus on translating meaningful content.
 
-## Requirements
+## Getting Started
 
-To run this application, you will need:
+### Prerequisites
+
+Ensure you have the following installed:
 
 - Python 3.x
 - Flask
 - BeautifulSoup4
 - Requests
 
-You can install all the necessary dependencies by running:
+Install all dependencies with:
 
-bash
+```bash
 pip install -r requirements.txt
+```
 
+### Configuration
 
-## Setup
-
-Before running the application, you need to set up your Azure Translation service credentials. Set the following environment variables:
+Set up your Azure Translation service credentials by defining the following environment variables:
 
 - `AZURE_TRANSLATION_KEY`: Your Azure Translation subscription key.
 - `AZURE_TRANSLATION_ENDPOINT`: The endpoint URL of your Azure Translation service.
 - `AZURE_TRANSLATION_LOCATION`: The location/region of your Azure Translation service.
 
-## Running the Application
+### Running the Application
 
-To start the Flask application, run:
+Launch the Flask application using:
 
-bash
+```bash
 python app.py
+```
 
-
-The application will start on `http://localhost:5000`.
+The service will be accessible at `http://localhost:5000`.
 
 ## Usage
 
-To translate an HTML file, send a POST request to `http://localhost:5000/translate` with the HTML file as form-data. The file should be included with the key `file`.
+To translate an HTML file, send a POST request to `http://localhost:5000/translate` with the HTML file as form-data. Use the key `file` for the file data.
 
 Example using `curl`:
 
+```bash
 curl -X POST -F "file=@path/to/your/file.html" http://localhost:5000/translate
-
+```
 
 The response will be a JSON object containing the translated HTML content.
 
 ## Contributing
 
-Contributions to improve the application are welcome. Please feel free to fork the repository, make changes, and submit a pull request.
+Contributions are welcome! Fork the repository, make your changes, and submit a pull request to help improve the application.
 
+## Deployment
+
+This application is deployable to Azure Web Apps, with a GitHub Actions workflow (`main_ai-translations.yml`) configured for CI/CD. This automates the build and deployment process, making it easy to get your translation service up and running in the cloud.
+
+## Feedback and Ratings
+
+The application supports submitting feedback and updating model ratings through the `/submit_feedback` and `/update_ratings` endpoints. This allows for user engagement and helps in refining the service based on user feedback.
+
+For implementation details, refer to the `app.py` file.
+
+Thank you for choosing the HTML Translator Service for your localization needs!
