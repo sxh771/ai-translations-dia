@@ -263,6 +263,80 @@
             // Here you can add further actions, like sending feedback to the server
         });
     });
+
+
+    // Add the provided JavaScript snippet here
+    document.getElementById('optionA').addEventListener('click', function() {
+    fetch('/update_ratings', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: "A is better" }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log(data.message);
+        // Optionally, fetch and update the ratings displayed on the page
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+});
+
+document.getElementById('optionB').addEventListener('click', function() {
+    fetch('/update_ratings', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: "B is better" }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log(data.message);
+        // Optionally, fetch and update the ratings displayed on the page
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+});
+
+document.getElementById('optionC').addEventListener('click', function() {
+    fetch('/update_ratings', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: "Tie" }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log(data.message);
+        // Optionally, fetch and update the ratings displayed on the page
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+});
+
+document.getElementById('optionD').addEventListener('click', function() {
+    fetch('/update_ratings', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action: "Both are bad" }),
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log(data.message);
+        // Optionally, fetch and update the ratings displayed on the page
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+});
 </script>
 </body>
 </html>

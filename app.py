@@ -217,6 +217,38 @@ def submit_feedback():
         logger.error(f"Failed to submit feedback: {e}")
         return jsonify({"error": "Failed to submit feedback"}), 500
 
+@app.route('/update_ratings', methods=['POST'])
+def update_ratings():
+    data = request.get_json()
+    action = data['action']
+    
+    conn_str = (
+        f"DRIVER={{{driver}}};"
+        f"SERVER={server};"
+        f"DATABASE={database};"
+        f"UID={username};"
+        f"PWD={password};"
+        "TrustServerCertificate=yes;"
+        "Connection Timeout=30;"
+    )
+    
+    try:
+        with pyodbc.connect(conn_str) as conn:
+            with conn.cursor() as cursor:
+                if action == "A is better":
+                    cursor.execute("UPDATE ModelRatings SET ratingA = ratingA + 1 WHERE id = 1")
+                elif action == "B is better":
+                    cursor.execute("UPDATE ModelRatings SET ratingB = ratingB + 1 WHERE id = 1")
+                elif action == "Tie":
+                    cursor.execute("UPDATE ModelRatings SET ratingA = ratingA + 1, ratingB = ratingB + 1 WHERE id = 1")
+                elif action == "Both are bad":
+                    cursor.execute("UPDATE ModelRatings SET ratingA = ratingA - 1, ratingB = ratingB - 1 WHERE id = 1")
+                conn.commit()
+        return jsonify({"message": "Ratings updated successfully"}), 200
+    except Exception as e:
+        logger.error(f"Failed to update ratings: {e}")
+        return jsonify({"error": "Failed to update ratings"}), 500
+
 if __name__ == '__main__':
     logger.info("Starting the Flask application...")
     app.run(debug=True)
