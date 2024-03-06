@@ -35,8 +35,9 @@
         }
     
         .content-container {
-            max-width: 800px;
-            margin: auto;
+            width: 75%; /* Increased from 50% to 75% to make the UI wider */
+            margin: auto; /* Center the container */
+            max-width: 1200px; /* Set a max-width to prevent the UI from becoming too wide on large screens */
             padding: 20px;
             background-color: white;
             border-radius: 8px;
@@ -80,6 +81,33 @@
             background-color: #e0e0e0;
         }
 
+        /* Add the new styles for the translations-container */
+        .translations-container {
+            display: flex;
+            justify-content: space-around;
+            flex-wrap: wrap;
+        }
+
+        .translation-column {
+            flex: 1; /* Each child will grow to use available space */
+            min-width: 300px; /* Minimum width before wrapping */
+            padding: 10px; /* Add some spacing around the content */
+        }
+
+        .translated-text-box {
+            width: calc(100% - 22px); /* Adjust width to account for padding and border, matching the input style */
+            height: 150px; /* Or any appropriate height */
+            padding: 10px;
+            margin-top: 20px; /* Space above the box */
+            border: 1px solid #ddd; /* Border similar to input */
+            border-radius: 5px; /* Rounded corners */
+            background-color: #fff; /* White background */
+            color: black; /* Text color */
+            resize: none; /* Prevent resizing */
+            overflow-y: auto; /* Add scroll for overflow */
+            font-size: 2em; /* Double the font size for larger text */
+        }
+
     </style>
 </head>
 <body>
@@ -97,15 +125,28 @@
                     <option value="es">Spanish</option>
                     <option value="fr">French</option>
                     <option value="fi">Finnish</option>
-                    <option value="ku">Kurdish</option> <!-- Adjust the value based on the code supported by your service -->
+                    <option value="ku">Kurdish</option> 
                     <option value="pl">Polish</option>
                 </select><br>
                 <input type="submit" value="Translate Text">
             </form>
-            <!-- I am going to call Azure AI translator Model A -->
-            <h3 class="translated-header">Translated by Model A</h3>
-            <div id="translated_content" class="translated-text-box" readonly>
+  
+            <div class="translations-container">
+                <div class="translation-column">
+                    <h3 class="translated-header">Translated by Model A</h3>
+                    <div id="translated_content_A" class="translated-text-box" readonly>
+                        <!-- Translated text by Model A will be dynamically inserted here -->
+                    </div>
+                </div>
+                <div class="translation-column">
+                    <h3 class="translated-header">Translated by Model B</h3>
+                    <div id="translated_content_B" class="translated-text-box" readonly>
+                        <p style="color: green; font-weight: bold;">Model B is going to be updated soon! Stay tuned!</p>
+                        <!-- Translated text by Model B will be dynamically inserted here -->
+                    </div>
+                </div>
             </div>
+
             <div id="feedback_options" class="feedback-options">
                 <button id="optionA" class="feedback-btn">A is better</button>
                 <button id="optionB" class="feedback-btn">B is better</button>
@@ -171,7 +212,7 @@
         .then(response => response.json())
         .then(data => {
             // Display the translated text or handle errors
-            document.getElementById('translated_content').textContent = data.translated_text || data.error;
+            document.getElementById('translated_content_A').textContent = data.translated_text || data.error;
             
             // Hide the spinner
             document.getElementById('loadingSpinner').style.display = 'none';
