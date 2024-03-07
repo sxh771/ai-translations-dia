@@ -6,6 +6,11 @@ import requests
 import pyodbc
 from datetime import datetime
 import uuid
+import fitz  # PyMuPDF
+from werkzeug.utils import secure_filename
+import tempfile
+import docx2txt
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -24,6 +29,8 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 app = Flask(__name__)
+
+# Set the secret key for Flask sessions
 os.environ['CURL_CA_BUNDLE'] = ""
 
 # Defining Azure AI Translation connections.
@@ -45,6 +52,26 @@ for var in required_env_vars:
         logger.error(f"Missing required environment variable: {var}")
         raise EnvironmentError(f"Missing required environment variable: {var}")
 
+
+
+def extract_text_from_pdf(pdf_file):
+    text = ""
+    with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
+        for page in doc:
+            text += page.get_text()
+    return text
+
+def extract_text_from_docx(docx_file_stream):
+    # Create a temporary file to save the uploaded .docx file
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        # Write the content of the uploaded file to the temporary file
+        docx_file_stream.seek(0)  # Go to the beginning of the file stream
+        tmp_file.write(docx_file_stream.read())
+        # Use the path of the temporary file with docx2txt
+        text = docx2txt.process(tmp_file.name)
+    return text
+
+
 # Default page.
 @app.route('/')
 def home():
@@ -52,14 +79,13 @@ def home():
     return render_template('index.html')
 
 def translate_text(text, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language):
-    """Detect language and translate text using Azure Translation."""
+    """Detect language and translate text using Azure Translation, handling large texts by splitting them into chunks."""
     logger.info("Starting language detection and text translation.")
     detect_language_path = '/detect'
     translate_path = '/translate'
     constructed_detect_url = azure_translation_endpoint + detect_language_path
     constructed_translate_url = azure_translation_endpoint + translate_path
 
-    # Create a session with SSL verification disabled
     session = requests.Session()
     session.verify = False
 
@@ -79,17 +105,25 @@ def translate_text(text, azure_translation_key, azure_translation_endpoint, azur
     detected_language = detect_response.json()[0]['language']
     logger.info(f"Detected language: {detected_language}")
 
-    # Translate text
-    params = {
-        'api-version': '3.0',
-        'from': detected_language,
-        'to': [target_language]
-    }
-    translate_response = session.post(constructed_translate_url, params=params, headers=headers, json=[{'text': text}])
-    if translate_response.status_code != 200:
-        logger.error(f"Translation API error: {translate_response.text}")
-        raise Exception("Error: Unable to translate text")
-    translated_text = translate_response.json()[0]['translations'][0]['text']
+    # Split text into chunks and translate
+    chunk_size = 5000  # Adjust based on API limits
+    chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+    translated_chunks = []
+
+    for chunk in chunks:
+        params = {
+            'api-version': '3.0',
+            'from': detected_language,
+            'to': [target_language]
+        }
+        translate_response = session.post(constructed_translate_url, params=params, headers=headers, json=[{'text': chunk}])
+        if translate_response.status_code != 200:
+            logger.error(f"Translation API error: {translate_response.text}")
+            raise Exception("Error: Unable to translate text")
+        translated_chunk = translate_response.json()[0]['translations'][0]['text']
+        translated_chunks.append(translated_chunk)
+
+    translated_text = ''.join(translated_chunks)
     logger.info("Text translation successful.")
 
     return translated_text, detected_language
@@ -143,15 +177,34 @@ def ensure_feedback_table_exists(conn_str):
     except Exception as e:
         logger.error(f"Failed to check/create 'Feedback' table: {e}")
 
+
+
 @app.route('/translate_and_insert', methods=['POST'])
 def translate_and_insert():
-    logger.info("Starting translation and insertion process.")
-    data = request.get_json()
-    input_text = data['text']
-    output_language = data['language']  # Since we're allowing users to select the language
+    extracted_text = ""
+    # Check if text input is provided
+    if 'text' in request.form and request.form['text'].strip():
+        extracted_text = request.form['text'].strip()
+    # Check if a file is uploaded; this will override text input if both are provided
+    if 'file' in request.files and request.files['file']:
+        file = request.files['file']
+        if file.filename.endswith('.pdf'):
+            extracted_text = extract_text_from_pdf(file.stream)
+        elif file.filename.endswith('.docx'):
+            extracted_text = extract_text_from_docx(file.stream)
+        elif file.filename.endswith('.txt'):
+            extracted_text = file.stream.read().decode('utf-8')
+        else:
+            return jsonify({"error": "Unsupported file type"}), 400
+    # Proceed with translation and database insertion as before
+
+    # Proceed with translation and database insertion as before
+
+    output_language = request.form['language']
 
     try:
-        translated_text, detected_language = translate_text(input_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
+        # Use 'extracted_text' instead of 'input_text'
+        translated_text, detected_language = translate_text(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
 
         # Define your connection string (adjusted for your application's needs)
         conn_str = (
@@ -173,7 +226,7 @@ def translate_and_insert():
 
         # Insert data into the database
         insert_query = """INSERT INTO TranslatedDocuments (input_text, detected_language, translated_text, output_language) VALUES (?, ?, ?, ?)"""
-        cursor.execute(insert_query, (input_text, detected_language, translated_text, output_language))
+        cursor.execute(insert_query, (extracted_text, detected_language, translated_text, output_language))
         connection.commit()
 
         return jsonify({"message": "Data inserted successfully", "translated_text": translated_text, "detected_language": detected_language, "output_language": output_language}), 200

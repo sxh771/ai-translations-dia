@@ -7,7 +7,7 @@
     <style>
         /* Remove fixed positioning from feedback form */
         #feedback_form {
-            width: 100%; /* Make it full width within its container */
+            width: 20%; /* Make it full width within its container */
             background-color: #f0f0f0;
             padding: 20px;
             border-radius: 5px;
@@ -59,7 +59,7 @@
             background-color: #0056b3;
         }
                 /* Center the title */
-                .centered-title {
+            .centered-title {
             text-align: center; /* Center text horizontally */
             width: 100%; /* Ensure it spans the full width */
         }
@@ -107,6 +107,13 @@
             overflow-y: auto; /* Add scroll for overflow */
             font-size: 2em; /* Double the font size for larger text */
         }
+        .translation-column {
+        width: 130%; /* Increase width by 30% */
+    }
+
+        #feedbackForm {
+            width: 40%; /* Decreased from 20% to 10% */
+        }
 
     </style>
 </head>
@@ -117,8 +124,13 @@
             <h2>Proof of Concept for AI-Powered Translation</h2>
             
             <!-- adding a text form for user input -->
-            <form id="textInputForm">
-                <textarea id="text_input" name="text_input" rows="10" placeholder="Enter your text here..."></textarea><br>
+            <form id="textInputForm" enctype="multipart/form-data">
+                <textarea id="text_input" name="text" placeholder="Enter text to translate or choose a file below"></textarea><br>
+                <!-- Add a paragraph -->
+
+                <p>Supported file types: .txt, .pdf, .docx</p>
+
+                <input type="file" id="file_input" name="file" accept=".txt,.pdf,.docx"><br>
                 <label for="language">Select language:</label>
                 <select id="language" name="language">
                     <option value="en">English</option>
@@ -158,16 +170,14 @@
                 <textarea id="feedback" name="feedback" rows="4" placeholder="Enter your feedback here..."></textarea><br>
                 <input type="submit" value="Submit Feedback">
             </form>
-            <div id="loadingSpinner" style="display: none;">
+            <div id="loadingSpinner" style="display: none; position: fixed; top: 0; left: 0;">
                 <!-- Spinner goes here -->
+                <div class="spinner"></div>
             </div>
-
     </div>
 
-    <!-- Add this inside your <body> tag, where you want the spinner to appear -->
-    <div id="loadingSpinner" style="display: none;">
-        <div class="spinner"></div>
-    </div>
+    <!-- Placeholder for the Thinking message -->
+    <div id="thinkingMessage" style="display: none;">Thinking...</div>
 
     <style>
     .spinner {
@@ -175,7 +185,7 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    border-left-color: #09f;
+    border-left-color: #FFD700; /* Yellowish color */
     animation: spin 1s ease infinite;
     }
 
@@ -190,49 +200,52 @@
     </style>
 
     <script>
-    document.getElementById('textInputForm').onsubmit = function(e) {
-        e.preventDefault(); // Prevent default form submission
-        const textInput = document.getElementById('text_input').value;
-        const targetLanguage = document.getElementById('language').value;
-        
-        // Show the spinner
-        document.getElementById('loadingSpinner').style.display = 'block';
-        
-        fetch('/translate_and_insert', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-            text: textInput,
-            language: targetLanguage,
-            table_name: "TranslatedDocuments" 
-        }),
-        })
-        .then(response => response.json())
-        .then(data => {
-            // Display the translated text or handle errors
-            document.getElementById('translated_content_A').textContent = data.translated_text || data.error;
-            
-            // Hide the spinner
-            document.getElementById('loadingSpinner').style.display = 'none';
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            
-            // Hide the spinner
-            document.getElementById('loadingSpinner').style.display = 'none';
+
+        document.getElementById('textInputForm').addEventListener('submit', function(e) {
+            e.preventDefault(); // Prevent default form submission
+            const formData = new FormData(this); // 'this' refers to the form
+            const textInput = document.getElementById('text_input').value;
+            const fileInput = document.getElementById('file_input').files.length; // Check if any file is selected
+
+            // Only show the spinner if text input is provided or a file is selected
+            if (textInput || fileInput) {
+                document.getElementById('loadingSpinner').style.display = 'block';
+                document.getElementById('thinkingMessage').style.display = 'block'; // Show the Thinking message
+
+                fetch('/translate_and_insert', {
+                    method: 'POST',
+                    body: formData,
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log(data);
+                    // Display the translated text in the "Translated by Model A" box
+                    document.getElementById('translated_content_A').innerHTML = `<p>${data.translated_text}</p>`;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                })
+                .finally(() => {
+                    // Hide the spinner and the Thinking message
+                    document.getElementById('loadingSpinner').style.display = 'none';
+                    document.getElementById('thinkingMessage').style.display = 'none'; // Hide the Thinking message
+                });
+            }
         });
-    };
-    
-   
+
 
     document.getElementById('feedbackForm').onsubmit = function(e) {
         e.preventDefault(); // Prevent default form submission
         const feedback = document.getElementById('feedback').value;
         
-        // Show the spinner
+        // Show the spinner and the Thinking message
         document.getElementById('loadingSpinner').style.display = 'block';
+        document.getElementById('thinkingMessage').style.display = 'block';
         
         fetch('/submit_feedback', {
             method: 'POST',
@@ -246,14 +259,16 @@
             alert('Feedback submitted successfully!');
             document.getElementById('feedback').value = ''; // Clear the textarea
             
-            // Hide the spinner
+            // Hide the spinner and the Thinking message
             document.getElementById('loadingSpinner').style.display = 'none';
+            document.getElementById('thinkingMessage').style.display = 'none';
         })
         .catch(error => {
             console.error('Error:', error);
             
-            // Hide the spinner
+            // Hide the spinner and the Thinking message
             document.getElementById('loadingSpinner').style.display = 'none';
+            document.getElementById('thinkingMessage').style.display = 'none';
         });
 };
 
@@ -337,6 +352,7 @@ document.getElementById('optionD').addEventListener('click', function() {
         console.error('Error:', error);
     });
 });
+
 </script>
 </body>
 </html>

@@ -5,3 +5,4 @@ gunicorn
 PyMuPDF
 reportlab
 pyodbc
+docx2txt

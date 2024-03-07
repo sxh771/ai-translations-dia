@@ -11,7 +11,9 @@ test.py
 # to collect thoughts
 notes.txt
 feedback.txt
-spanish
+
+.DS_Store
+
 
 
 # Image file extensions to ignore
