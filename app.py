@@ -91,13 +91,17 @@ def upload_file_to_blob(file_stream, file_name):
     connect_str = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
     container_name = 'ai-translation'
     
+    # Add datetime stamp to the file name
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    file_name_with_timestamp = f"{timestamp}_{file_name}"
+
     blob_service_client = BlobServiceClient.from_connection_string(connect_str)
-    blob_client = blob_service_client.get_blob_client(container=container_name, blob=file_name)
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=file_name_with_timestamp)
 
     file_stream.seek(0)
     blob_client.upload_blob(file_stream, overwrite=True)
 
-    blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{file_name}"
+    blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{file_name_with_timestamp}"
     return blob_url
 
 def extract_text_from_pdf(pdf_file):
