@@ -10,7 +10,16 @@ import fitz  # PyMuPDF
 from werkzeug.utils import secure_filename
 import tempfile
 import docx2txt
+from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+from urllib3 import disable_warnings, exceptions
 
+from requests.sessions import Session
+
+
+# Disable SSL warnings
+disable_warnings(exceptions.InsecureRequestWarning)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -31,8 +40,18 @@ logger.addHandler(file_handler)
 app = Flask(__name__)
 
 # Set the secret key for Flask sessions
-os.environ['CURL_CA_BUNDLE'] = ""
+# os.environ['CURL_CA_BUNDLE'] = ""
 
+
+# # Set the environment variables
+# os.environ['CERT_PATH'] = '/etc/ssl/certs/cacert1.pem'
+# os.environ['CERT_DIR'] = '/etc/ssl/certs/'
+# os.environ['SSL_CERT_FILE'] = os.environ['CERT_PATH']
+# os.environ['SSL_CERT_DIR'] = os.environ['CERT_DIR']
+# os.environ['REQUESTS_CA_BUNDLE'] = os.environ['CERT_PATH']
+
+
+# os.environ['REQUESTS_CA_BUNDLE'] = "/opt/homebrew/Caskroom/miniconda/base/lib/python3.11/site-packages/certifi/cacert.pem"
 # Defining Azure AI Translation connections.
 azure_translation_key = os.environ.get("AZURE_TRANSLATION_KEY")
 azure_translation_endpoint = os.environ.get("AZURE_TRANSLATION_ENDPOINT")
@@ -45,6 +64,11 @@ database = os.environ.get("DB_NAME")
 username = os.environ.get("DB_USERNAME")
 password = os.environ.get("DB_PASSWORD")
 
+connect_str = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+# connect_str = 'BlobEndpoint=https://aitranslation.blob.core.windows.net/;QueueEndpoint=https://aitranslation.queue.core.windows.net/;FileEndpoint=https://aitranslation.file.core.windows.net/;TableEndpoint=https://aitranslation.table.core.windows.net/;SharedAccessSignature=sv=2022-11-02&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2024-03-09T23:23:42Z&st=2024-03-09T15:23:42Z&sip=192.168.1.175&spr=https&sig=yg6jvPWhIrOMbj8Ae8ZKxuT%2FRCc9BazBcDHTn5M4hng%3D'
+container_name = 'ai-translation'
+
+
 # Check environment variables
 required_env_vars = ['AZURE_TRANSLATION_KEY', 'AZURE_TRANSLATION_ENDPOINT', 'AZURE_TRANSLATION_LOCATION']
 for var in required_env_vars:
@@ -53,6 +77,28 @@ for var in required_env_vars:
         raise EnvironmentError(f"Missing required environment variable: {var}")
 
 
+# def custom_https_transport(request: HttpRequest):
+#     session = Session()
+#     session.verify = False  # Disable SSL certificate verification
+#     return session.send(request.http_request, **request.context.options)
+
+
+# blob_service_client = BlobServiceClient.from_connection_string(connect_str, transport=custom_https_transport)
+
+
+
+def upload_file_to_blob(file_stream, file_name):
+    connect_str = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+    container_name = 'ai-translation'
+    
+    blob_service_client = BlobServiceClient.from_connection_string(connect_str)
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=file_name)
+
+    file_stream.seek(0)
+    blob_client.upload_blob(file_stream, overwrite=True)
+
+    blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{file_name}"
+    return blob_url
 
 def extract_text_from_pdf(pdf_file):
     text = ""
@@ -138,7 +184,9 @@ def ensure_table_exists(conn_str):
             detected_language NVARCHAR(100),
             translated_text NVARCHAR(MAX),
             output_language NVARCHAR(100),
-            created_at DATETIME2 DEFAULT GETDATE()
+            created_at DATETIME2 DEFAULT GETDATE(),
+            blob_url NVARCHAR(MAX),
+            user_ip NVARCHAR(100)  -- Add this line
         )
     END
     ELSE
@@ -147,6 +195,16 @@ def ensure_table_exists(conn_str):
                        WHERE Name = N'created_at' AND Object_ID = Object_ID(N'TranslatedDocuments'))
         BEGIN
             ALTER TABLE TranslatedDocuments ADD created_at DATETIME2 DEFAULT GETDATE()
+        END
+        IF NOT EXISTS (SELECT * FROM sys.columns 
+                       WHERE Name = N'blob_url' AND Object_ID = Object_ID(N'TranslatedDocuments'))
+        BEGIN
+            ALTER TABLE TranslatedDocuments ADD blob_url NVARCHAR(MAX)
+        END
+        IF NOT EXISTS (SELECT * FROM sys.columns 
+                       WHERE Name = N'user_ip' AND Object_ID = Object_ID(N'TranslatedDocuments'))  -- Add this block
+        BEGIN
+            ALTER TABLE TranslatedDocuments ADD user_ip NVARCHAR(100)
         END
     END
     """
@@ -181,6 +239,9 @@ def ensure_feedback_table_exists(conn_str):
 
 @app.route('/translate_and_insert', methods=['POST'])
 def translate_and_insert():
+    # Initialize blob_url to None
+    blob_url = None
+    
     extracted_text = ""
     # Check if text input is provided
     if 'text' in request.form and request.form['text'].strip():
@@ -196,10 +257,11 @@ def translate_and_insert():
             extracted_text = file.stream.read().decode('utf-8')
         else:
             return jsonify({"error": "Unsupported file type"}), 400
-    # Proceed with translation and database insertion as before
+        # Upload the file to Azure Blob Storage and get the blob URL
+        blob_url = upload_file_to_blob(file.stream, file.filename)
 
     # Proceed with translation and database insertion as before
-
+    # Ensure blob_url is handled correctly when it's None
     output_language = request.form['language']
 
     try:
@@ -224,9 +286,14 @@ def translate_and_insert():
         connection = pyodbc.connect(conn_str)
         cursor = connection.cursor()
 
-        # Insert data into the database
-        insert_query = """INSERT INTO TranslatedDocuments (input_text, detected_language, translated_text, output_language) VALUES (?, ?, ?, ?)"""
-        cursor.execute(insert_query, (extracted_text, detected_language, translated_text, output_language))
+        # Extract the user's IP address
+        user_ip = request.remote_addr
+
+        # Update your insert query to include the user_ip
+        insert_query = """INSERT INTO TranslatedDocuments (input_text, detected_language, translated_text, output_language, blob_url, user_ip) VALUES (?, ?, ?, ?, ?, ?)"""
+
+        # Include 'user_ip' in the cursor.execute call
+        cursor.execute(insert_query, (extracted_text, detected_language, translated_text, output_language, blob_url if blob_url else "", user_ip))
         connection.commit()
 
         return jsonify({"message": "Data inserted successfully", "translated_text": translated_text, "detected_language": detected_language, "output_language": output_language}), 200
