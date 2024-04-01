@@ -1,57 +1,19 @@
-import logging
-from logging.handlers import RotatingFileHandler
-from flask import Flask, request, jsonify, render_template
 import os
-import requests
-import pyodbc
-from datetime import datetime
 import uuid
-import fitz  # PyMuPDF
-from werkzeug.utils import secure_filename
-import tempfile
+import pyodbc
+import logging
+import fitz
 import docx2txt
-from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-from urllib3 import disable_warnings, exceptions
-
-from requests.sessions import Session
-
-
-# Disable SSL warnings
-disable_warnings(exceptions.InsecureRequestWarning)
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-# Create a file handler and set level to debug
-log_file_path = os.path.join(os.getcwd(), 'app.log')
-file_handler = RotatingFileHandler(log_file_path, maxBytes=1024 * 1024 * 100, backupCount=10)  # 100MB per file, max 10 files
-file_handler.setLevel(logging.INFO)
-
-# Create a logging format
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(formatter)
-
-# Add the handlers to the logger
-logger.addHandler(file_handler)
+import tempfile
+from datetime import datetime
+from flask import Flask, request, jsonify, render_template
+from azure.storage.blob import BlobServiceClient
+import requests
+from requests import Session
 
 app = Flask(__name__)
+import os
 
-# Set the secret key for Flask sessions
-# os.environ['CURL_CA_BUNDLE'] = ""
-
-
-# # Set the environment variables
-# os.environ['CERT_PATH'] = '/etc/ssl/certs/cacert1.pem'
-# os.environ['CERT_DIR'] = '/etc/ssl/certs/'
-# os.environ['SSL_CERT_FILE'] = os.environ['CERT_PATH']
-# os.environ['SSL_CERT_DIR'] = os.environ['CERT_DIR']
-# os.environ['REQUESTS_CA_BUNDLE'] = os.environ['CERT_PATH']
-
-
-# os.environ['REQUESTS_CA_BUNDLE'] = "/opt/homebrew/Caskroom/miniconda/base/lib/python3.11/site-packages/certifi/cacert.pem"
 # Defining Azure AI Translation connections.
 azure_translation_key = os.environ.get("AZURE_TRANSLATION_KEY")
 azure_translation_endpoint = os.environ.get("AZURE_TRANSLATION_ENDPOINT")
@@ -65,9 +27,18 @@ username = os.environ.get("DB_USERNAME")
 password = os.environ.get("DB_PASSWORD")
 
 connect_str = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
-# connect_str = 'BlobEndpoint=https://aitranslation.blob.core.windows.net/;QueueEndpoint=https://aitranslation.queue.core.windows.net/;FileEndpoint=https://aitranslation.file.core.windows.net/;TableEndpoint=https://aitranslation.table.core.windows.net/;SharedAccessSignature=sv=2022-11-02&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2024-03-09T23:23:42Z&st=2024-03-09T15:23:42Z&sip=192.168.1.175&spr=https&sig=yg6jvPWhIrOMbj8Ae8ZKxuT%2FRCc9BazBcDHTn5M4hng%3D'
 container_name = 'ai-translation'
 
+
+# Configure logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 # Check environment variables
 required_env_vars = ['AZURE_TRANSLATION_KEY', 'AZURE_TRANSLATION_ENDPOINT', 'AZURE_TRANSLATION_LOCATION']
@@ -75,16 +46,6 @@ for var in required_env_vars:
     if not os.environ.get(var):
         logger.error(f"Missing required environment variable: {var}")
         raise EnvironmentError(f"Missing required environment variable: {var}")
-
-
-# def custom_https_transport(request: HttpRequest):
-#     session = Session()
-#     session.verify = False  # Disable SSL certificate verification
-#     return session.send(request.http_request, **request.context.options)
-
-
-# blob_service_client = BlobServiceClient.from_connection_string(connect_str, transport=custom_https_transport)
-
 
 
 def upload_file_to_blob(file_stream, file_name):
@@ -127,12 +88,25 @@ from transformers import AutoProcessor, SeamlessM4Tv2ForTextToText
 processor = AutoProcessor.from_pretrained("facebook/seamless-m4t-v2-large")
 model = SeamlessM4Tv2ForTextToText.from_pretrained("facebook/seamless-m4t-v2-large")
 
-def translate_model_b(text, target_lang):
-    src_lang = "eng"
-    text_inputs = processor(text=text, src_lang=src_lang, return_tensors="pt")
-    decoder_input_ids = model.generate(**text_inputs, tgt_lang=target_lang)[0].tolist()
-    translated_text = processor.decode(decoder_input_ids, skip_special_tokens=True)
-    return translated_text
+def translate_model_b(text, src_lang_code, target_lang_code):
+    try:
+        # Define a reasonable chunk size; this might need adjustment
+        chunk_size = 1024  # Example size, adjust based on experimentation
+        chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+        translated_chunks = []
+
+        for chunk in chunks:
+            text_inputs = processor(text=chunk, src_lang=src_lang_code, return_tensors="pt")
+            decoder_input_ids = model.generate(**text_inputs, tgt_lang=target_lang_code)[0].tolist()
+            translated_chunk = processor.decode(decoder_input_ids, skip_special_tokens=True)
+            translated_chunks.append(translated_chunk)
+
+        # Combine the translated chunks
+        translated_text = " ".join(translated_chunks)
+        return translated_text
+    except ValueError as e:
+        logger.error(f"Error in translate_model_b: {e}")
+        return f"Error: Target language '{target_lang_code}' not supported by Model B"
 
 # Default page.
 @app.route('/')
@@ -251,8 +225,6 @@ def ensure_feedback_table_exists(conn_str):
     except Exception as e:
         logger.error(f"Failed to check/create 'Feedback' table: {e}")
 
-
-
 @app.route('/translate_and_insert', methods=['POST'])
 def translate_and_insert():
     # Initialize blob_url to None
@@ -276,14 +248,31 @@ def translate_and_insert():
         # Upload the file to Azure Blob Storage and get the blob URL
         blob_url = upload_file_to_blob(file.stream, file.filename)
 
-    # Proceed with translation and database insertion as before
-    # Ensure blob_url is handled correctly when it's None
     output_language = request.form['language']
 
+    # Mapping from Azure AI Translation codes to Model B 3-letter codes
+    azure_to_model_b_map = {
+        "en": "eng",  # English
+        "es": "spa",  # Spanish
+        "fr": "fra",  # French
+        "fi": "fin",  # Finnish
+        "ku": "ckb",  # Kurdish
+        "pl": "pol",  # Polish
+    }
+
     try:
-        # Use 'extracted_text' instead of 'input_text'
         translated_text_a, detected_language = translate_text(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
-        translated_text_b = translate_model_b(extracted_text, output_language)
+        
+        # Assuming 'detected_language' is the code from Azure AI Translation
+        detected_language_code = detected_language[:2]  # Extract the 2-letter code if necessary
+        model_b_source_lang_code = azure_to_model_b_map.get(detected_language_code, "eng")  # Default to English if not found
+
+        # Assuming 'output_language' is the target language selected by the user
+        model_b_target_lang_code = azure_to_model_b_map.get(output_language, "eng")  # Default to English if not found
+
+        # Now use model_b_source_lang_code and model_b_target_lang_code for Model B translation
+        translated_text_b = translate_model_b(extracted_text, model_b_source_lang_code, model_b_target_lang_code)
+
         # Define your connection string (adjusted for your application's needs)
         conn_str = (
             f"DRIVER={{{driver}}};"
@@ -292,34 +281,38 @@ def translate_and_insert():
             f"UID={username};"
             f"PWD={password};"
             "TrustServerCertificate=yes;"
-            "Connection Timeout=500;"
+            "Connection Timeout=120;"
         )
 
         # Ensure the table exists before inserting data
         ensure_table_exists(conn_str)
 
         # Connect to the database
-        connection = pyodbc.connect(conn_str)
-        cursor = connection.cursor()
+        try:
+            connection = pyodbc.connect(conn_str)
+            cursor = connection.cursor()
 
-        # Extract the user's IP address
-        user_ip = request.remote_addr
+            # Extract the user's IP address
+            user_ip = request.remote_addr
 
-        # Update your insert query to include the user_ip
-        insert_query = """INSERT INTO TranslatedDocuments (input_text, detected_language, translated_text, output_language, blob_url, user_ip) VALUES (?, ?, ?, ?, ?, ?)"""
+            # Update your insert query to include the user_ip
+            insert_query = """INSERT INTO TranslatedDocuments (input_text, detected_language, translated_text, output_language, blob_url, user_ip) VALUES (?, ?, ?, ?, ?, ?)"""
 
-        # Include 'user_ip' in the cursor.execute call
-        cursor.execute(insert_query, (extracted_text, detected_language, translated_text, output_language, blob_url if blob_url else "", user_ip))
-        connection.commit()
+            # Include 'user_ip' in the cursor.execute call
+            cursor.execute(insert_query, (extracted_text, detected_language, translated_text_a, output_language, blob_url, user_ip))
+            connection.commit()
+            cursor.close()
+            connection.close()
 
-        return jsonify({"message": "Data inserted successfully", 
-                        "translated_text_a": translated_text_a,
-                        "translated_text_b": translated_text_b,
-                        "detected_language": detected_language, 
-                        "output_language": output_language}), 200
+            logger.info("Translation and database insertion successful.")
+            return jsonify({"translated_text_a": translated_text_a, "translated_text_b": translated_text_b}), 200
+        except pyodbc.Error as e:
+            logger.error(f"Database error: {e}")
+            return jsonify({"error": "Database error"}), 500
+
     except Exception as e:
-        logger.error(f"Failed to translate and insert data: {e}")
-        return jsonify({"error": "Failed to translate and insert data"}), 500
+        logger.error(f"Translation or database insertion failed: {e}")
+        return jsonify({"error": "Translation or database insertion failed"}), 500
 
 @app.route('/submit_feedback', methods=['POST'])
 def submit_feedback():
@@ -355,38 +348,6 @@ def submit_feedback():
     except Exception as e:
         logger.error(f"Failed to submit feedback: {e}")
         return jsonify({"error": "Failed to submit feedback"}), 500
-
-@app.route('/update_ratings', methods=['POST'])
-def update_ratings():
-    data = request.get_json()
-    action = data['action']
-    
-    conn_str = (
-        f"DRIVER={{{driver}}};"
-        f"SERVER={server};"
-        f"DATABASE={database};"
-        f"UID={username};"
-        f"PWD={password};"
-        "TrustServerCertificate=yes;"
-        "Connection Timeout=30;"
-    )
-    
-    try:
-        with pyodbc.connect(conn_str) as conn:
-            with conn.cursor() as cursor:
-                if action == "A is better":
-                    cursor.execute("UPDATE ModelRatings SET ratingA = ratingA + 1 WHERE id = 1")
-                elif action == "B is better":
-                    cursor.execute("UPDATE ModelRatings SET ratingB = ratingB + 1 WHERE id = 1")
-                elif action == "Tie":
-                    cursor.execute("UPDATE ModelRatings SET ratingA = ratingA + 1, ratingB = ratingB + 1 WHERE id = 1")
-                elif action == "Both are bad":
-                    cursor.execute("UPDATE ModelRatings SET ratingA = ratingA - 1, ratingB = ratingB - 1 WHERE id = 1")
-                conn.commit()
-        return jsonify({"message": "Ratings updated successfully"}), 200
-    except Exception as e:
-        logger.error(f"Failed to update ratings: {e}")
-        return jsonify({"error": "Failed to update ratings"}), 500
 
 if __name__ == '__main__':
     logger.info("Starting the Flask application...")
