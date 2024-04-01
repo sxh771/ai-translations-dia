@@ -8,6 +8,11 @@ __pycache__/
 test.ipynb
 test.py
 
+*.pdf 
+*.pptx 
+ChatBotResearch/
+
+
 # to collect thoughts
 notes.txt
 feedback.txt

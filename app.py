@@ -121,6 +121,18 @@ def extract_text_from_docx(docx_file_stream):
         text = docx2txt.process(tmp_file.name)
     return text
 
+# Using Meta Seamless model for Model B translation
+from transformers import AutoProcessor, SeamlessM4Tv2ForTextToText
+
+processor = AutoProcessor.from_pretrained("facebook/seamless-m4t-v2-large")
+model = SeamlessM4Tv2ForTextToText.from_pretrained("facebook/seamless-m4t-v2-large")
+
+def translate_model_b(text, target_lang):
+    src_lang = "eng"
+    text_inputs = processor(text=text, src_lang=src_lang, return_tensors="pt")
+    decoder_input_ids = model.generate(**text_inputs, tgt_lang=target_lang)[0].tolist()
+    translated_text = processor.decode(decoder_input_ids, skip_special_tokens=True)
+    return translated_text
 
 # Default page.
 @app.route('/')
@@ -270,8 +282,8 @@ def translate_and_insert():
 
     try:
         # Use 'extracted_text' instead of 'input_text'
-        translated_text, detected_language = translate_text(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
-
+        translated_text_a, detected_language = translate_text(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
+        translated_text_b = translate_model_b(extracted_text, output_language)
         # Define your connection string (adjusted for your application's needs)
         conn_str = (
             f"DRIVER={{{driver}}};"
@@ -300,8 +312,11 @@ def translate_and_insert():
         cursor.execute(insert_query, (extracted_text, detected_language, translated_text, output_language, blob_url if blob_url else "", user_ip))
         connection.commit()
 
-        return jsonify({"message": "Data inserted successfully", "translated_text": translated_text, "detected_language": detected_language, "output_language": output_language}), 200
-
+        return jsonify({"message": "Data inserted successfully", 
+                        "translated_text_a": translated_text_a,
+                        "translated_text_b": translated_text_b,
+                        "detected_language": detected_language, 
+                        "output_language": output_language}), 200
     except Exception as e:
         logger.error(f"Failed to translate and insert data: {e}")
         return jsonify({"error": "Failed to translate and insert data"}), 500

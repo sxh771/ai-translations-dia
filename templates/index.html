@@ -156,7 +156,6 @@
                 <div class="translation-column">
                     <h3 class="translated-header">Translated by Model B</h3>
                     <div id="translated_content_B" class="translated-text-box" readonly>
-                        <p style="color: green; font-weight: bold;">Model B is going to be updated soon! Stay tuned!</p>
                         <!-- Translated text by Model B will be dynamically inserted here -->
                     </div>
                 </div>
@@ -256,11 +255,12 @@
                     }
                     return response.json();
                 })
+                // Update the JavaScript to populate Model B translation
                 .then(data => {
                     console.log(data);
-                    // Display the translated text in the "Translated by Model A" box
-                    document.getElementById('translated_content_A').innerHTML = `<p>${data.translated_text}</p>`;
-                })
+                    document.getElementById('translated_content_A').innerHTML = `<p>${data.translated_text_a}</p>`;
+                    document.getElementById('translated_content_B').innerHTML = `<p>${data.translated_text_b}</p>`; // Add this line
+})
                 .catch(error => {
                     console.error('Error:', error);
                 })

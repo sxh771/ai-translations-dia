@@ -7,3 +7,7 @@ reportlab
 pyodbc
 docx2txt
 azure-storage-blob
+transformers
+torch
+sentencepiece
+protobuf
