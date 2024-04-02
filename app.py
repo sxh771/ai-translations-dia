@@ -11,8 +11,10 @@ from azure.storage.blob import BlobServiceClient
 import requests
 from requests import Session
 
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
 app = Flask(__name__)
-import os
 
 # Defining Azure AI Translation connections.
 azure_translation_key = os.environ.get("AZURE_TRANSLATION_KEY")
@@ -88,25 +90,39 @@ from transformers import AutoProcessor, SeamlessM4Tv2ForTextToText
 processor = AutoProcessor.from_pretrained("facebook/seamless-m4t-v2-large")
 model = SeamlessM4Tv2ForTextToText.from_pretrained("facebook/seamless-m4t-v2-large")
 
-def translate_model_b(text, src_lang_code, target_lang_code):
-    try:
-        # Define a reasonable chunk size; this might need adjustment
-        chunk_size = 1024  # Example size, adjust based on experimentation
-        chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
-        translated_chunks = []
+async def translate_chunk_model_b(chunk, src_lang_code, target_lang_code):
+    text_inputs = processor(text=chunk, src_lang=src_lang_code, return_tensors="pt")
+    decoder_input_ids = model.generate(**text_inputs, tgt_lang=target_lang_code)[0].tolist()
+    translated_chunk = processor.decode(decoder_input_ids, skip_special_tokens=True)
+    return translated_chunk
 
-        for chunk in chunks:
-            text_inputs = processor(text=chunk, src_lang=src_lang_code, return_tensors="pt")
-            decoder_input_ids = model.generate(**text_inputs, tgt_lang=target_lang_code)[0].tolist()
-            translated_chunk = processor.decode(decoder_input_ids, skip_special_tokens=True)
-            translated_chunks.append(translated_chunk)
+async def translate_model_b_async(text, src_lang_code, target_lang_code):
+    chunk_size = 1024
+    chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+    tasks = [translate_chunk_model_b(chunk, src_lang_code, target_lang_code) for chunk in chunks]
+    translated_chunks = await asyncio.gather(*tasks)
+    translated_text = " ".join(translated_chunks)
+    return translated_text
 
-        # Combine the translated chunks
-        translated_text = " ".join(translated_chunks)
-        return translated_text
-    except ValueError as e:
-        logger.error(f"Error in translate_model_b: {e}")
-        return f"Error: Target language '{target_lang_code}' not supported by Model B"
+async def upload_file_to_blob_async(file_stream, file_name):
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor() as pool:
+        return await loop.run_in_executor(pool, upload_file_to_blob, file_stream, file_name)
+
+async def extract_text_from_pdf_async(pdf_file):
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor() as pool:
+        return await loop.run_in_executor(pool, extract_text_from_pdf, pdf_file)
+
+async def extract_text_from_docx_async(docx_file_stream):
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor() as pool:
+        return await loop.run_in_executor(pool, extract_text_from_docx, docx_file_stream)
+
+async def translate_text_async(text, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language):
+    loop = asyncio.get_event_loop()
+    with ThreadPoolExecutor() as pool:
+        return await loop.run_in_executor(pool, translate_text, text, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language)
 
 # Default page.
 @app.route('/')
@@ -172,11 +188,12 @@ def ensure_table_exists(conn_str):
             id INT PRIMARY KEY IDENTITY(1,1),
             input_text NVARCHAR(MAX),
             detected_language NVARCHAR(100),
-            translated_text NVARCHAR(MAX),
+            translated_text_a NVARCHAR(MAX),
+            translated_text_b NVARCHAR(MAX),
             output_language NVARCHAR(100),
             created_at DATETIME2 DEFAULT GETDATE(),
             blob_url NVARCHAR(MAX),
-            user_ip NVARCHAR(100)  -- Add this line
+            user_ip NVARCHAR(100)
         )
     END
     ELSE
@@ -192,9 +209,14 @@ def ensure_table_exists(conn_str):
             ALTER TABLE TranslatedDocuments ADD blob_url NVARCHAR(MAX)
         END
         IF NOT EXISTS (SELECT * FROM sys.columns 
-                       WHERE Name = N'user_ip' AND Object_ID = Object_ID(N'TranslatedDocuments'))  -- Add this block
+                       WHERE Name = N'user_ip' AND Object_ID = Object_ID(N'TranslatedDocuments'))
         BEGIN
             ALTER TABLE TranslatedDocuments ADD user_ip NVARCHAR(100)
+        END
+        IF NOT EXISTS (SELECT * FROM sys.columns 
+                       WHERE Name = N'translated_text_b' AND Object_ID = Object_ID(N'TranslatedDocuments'))
+        BEGIN
+            ALTER TABLE TranslatedDocuments ADD translated_text_b NVARCHAR(MAX)
         END
     END
     """
@@ -226,7 +248,8 @@ def ensure_feedback_table_exists(conn_str):
         logger.error(f"Failed to check/create 'Feedback' table: {e}")
 
 @app.route('/translate_and_insert', methods=['POST'])
-def translate_and_insert():
+async def translate_and_insert_async():
+
     # Initialize blob_url to None
     blob_url = None
     
@@ -238,15 +261,15 @@ def translate_and_insert():
     if 'file' in request.files and request.files['file']:
         file = request.files['file']
         if file.filename.endswith('.pdf'):
-            extracted_text = extract_text_from_pdf(file.stream)
+            extracted_text = await extract_text_from_pdf_async(file.stream)
         elif file.filename.endswith('.docx'):
-            extracted_text = extract_text_from_docx(file.stream)
+            extracted_text = await extract_text_from_docx_async(file.stream)
         elif file.filename.endswith('.txt'):
             extracted_text = file.stream.read().decode('utf-8')
         else:
             return jsonify({"error": "Unsupported file type"}), 400
         # Upload the file to Azure Blob Storage and get the blob URL
-        blob_url = upload_file_to_blob(file.stream, file.filename)
+        blob_url = await upload_file_to_blob_async(file.stream, file.filename)
 
     output_language = request.form['language']
 
@@ -261,7 +284,7 @@ def translate_and_insert():
     }
 
     try:
-        translated_text_a, detected_language = translate_text(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
+        translated_text_a, detected_language = await translate_text_async(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
         
         # Assuming 'detected_language' is the code from Azure AI Translation
         detected_language_code = detected_language[:2]  # Extract the 2-letter code if necessary
@@ -271,7 +294,7 @@ def translate_and_insert():
         model_b_target_lang_code = azure_to_model_b_map.get(output_language, "eng")  # Default to English if not found
 
         # Now use model_b_source_lang_code and model_b_target_lang_code for Model B translation
-        translated_text_b = translate_model_b(extracted_text, model_b_source_lang_code, model_b_target_lang_code)
+        translated_text_b = await translate_model_b_async(extracted_text, model_b_source_lang_code, model_b_target_lang_code)
 
         # Define your connection string (adjusted for your application's needs)
         conn_str = (
@@ -284,7 +307,7 @@ def translate_and_insert():
             "Connection Timeout=120;"
         )
 
-        # Ensure the table exists before inserting data
+                # Ensure the table exists before inserting data
         ensure_table_exists(conn_str)
 
         # Connect to the database
@@ -296,10 +319,10 @@ def translate_and_insert():
             user_ip = request.remote_addr
 
             # Update your insert query to include the user_ip
-            insert_query = """INSERT INTO TranslatedDocuments (input_text, detected_language, translated_text, output_language, blob_url, user_ip) VALUES (?, ?, ?, ?, ?, ?)"""
+            insert_query = """INSERT INTO TranslatedDocuments (input_text, detected_language, translated_text_a, translated_text_b, output_language, blob_url, user_ip) VALUES (?, ?, ?, ?, ?, ?, ?)"""
 
             # Include 'user_ip' in the cursor.execute call
-            cursor.execute(insert_query, (extracted_text, detected_language, translated_text_a, output_language, blob_url, user_ip))
+            cursor.execute(insert_query, (extracted_text, detected_language, translated_text_a, translated_text_b, output_language, blob_url, user_ip))
             connection.commit()
             cursor.close()
             connection.close()
@@ -315,7 +338,7 @@ def translate_and_insert():
         return jsonify({"error": "Translation or database insertion failed"}), 500
 
 @app.route('/submit_feedback', methods=['POST'])
-def submit_feedback():
+async def submit_feedback_async():
     data = request.get_json()
     feedback_text = data['feedback']
 

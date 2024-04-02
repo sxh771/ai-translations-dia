@@ -1,4 +1,6 @@
-Flask
+flask
+flask[async]
+
 requests
 beautifulsoup4
 gunicorn
