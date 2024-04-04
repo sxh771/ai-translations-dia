@@ -58,5 +58,5 @@ jobs:
         id: deploy-to-webapp
         with:
           app-name: 'AI-translations'
-          slot-name: ${{ github.ref == 'refs/heads/main' && 'Production' || 'dev' }}
+          slot-name: ${{ github.ref == 'refs/heads/main' && '' || 'ai-translations-dev' }}
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_D510DDE97FBA49729298B6B8AB1F6F21 }}
