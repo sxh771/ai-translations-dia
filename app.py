@@ -1,6 +1,6 @@
 import logging
 from logging.handlers import RotatingFileHandler
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, make_response
 import os
 import requests
 import pyodbc
@@ -223,7 +223,27 @@ def ensure_feedback_table_exists(conn_str):
     except Exception as e:
         logger.error(f"Failed to check/create 'Feedback' table: {e}")
 
-
+@app.route('/synthesize_speech', methods=['POST'])
+def synthesize_speech():
+    data = request.get_json()
+    text = data['text']
+    language = data['language']
+    
+    # Use Azure Cognitive Services Speech SDK to synthesize speech
+    # This is a simplified example. Adjust according to your SDK version and setup.
+    speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+    speech_config.speech_synthesis_language = language
+    synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config)
+    
+    result = synthesizer.speak_text_async(text).get()
+    
+    if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+        # Return the synthesized audio as a response
+        response = make_response(result.audio_data)
+        response.headers.set('Content-Type', 'audio/wav')
+        return response
+    else:
+        return jsonify({"error": "Failed to synthesize speech"}), 500
 
 @app.route('/translate_and_insert', methods=['POST'])
 def translate_and_insert():
