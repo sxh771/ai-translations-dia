@@ -225,25 +225,38 @@ def ensure_feedback_table_exists(conn_str):
 
 @app.route('/synthesize_speech', methods=['POST'])
 def synthesize_speech():
-    data = request.get_json()
-    text = data['text']
-    language = data['language']
-    
-    # Use Azure Cognitive Services Speech SDK to synthesize speech
-    # This is a simplified example. Adjust according to your SDK version and setup.
-    speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
-    speech_config.speech_synthesis_language = language
-    synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config)
-    
-    result = synthesizer.speak_text_async(text).get()
-    
-    if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-        # Return the synthesized audio as a response
-        response = make_response(result.audio_data)
-        response.headers.set('Content-Type', 'audio/wav')
-        return response
-    else:
-        return jsonify({"error": "Failed to synthesize speech"}), 500
+    try:
+        data = request.get_json()
+        text = data['text']
+        language = data['language']
+        
+        # Initialize the speech synthesizer
+        speech_key = os.environ.get('AZURE_SPEECH_KEY')
+        speech_region = os.environ.get('AZURE_SPEECH_REGION')
+        if not speech_key or not speech_region:
+            raise ValueError("Azure speech service credentials are not set.")
+
+        speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+        speech_config.speech_synthesis_language = language
+        synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config)
+        
+        # Perform the speech synthesis
+        result = synthesizer.speak_text_async(text).get()
+        
+        if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+            response = make_response(result.audio_data)
+            response.headers.set('Content-Type', 'audio/wav')
+            return response
+        elif result.reason == speechsdk.ResultReason.Canceled:
+            cancellation_details = result.cancellation_details
+            logger.error(f"Speech synthesis canceled: {cancellation_details.reason}")
+            return jsonify({"error": "Speech synthesis canceled", "details": str(cancellation_details)}), 500
+        else:
+            logger.error("Failed to synthesize speech for an unknown reason.")
+            return jsonify({"error": "Failed to synthesize speech"}), 500
+    except Exception as e:
+        logger.exception("An error occurred during speech synthesis.")
+        return jsonify({"error": "An error occurred during speech synthesis", "details": str(e)}), 500
 
 @app.route('/translate_and_insert', methods=['POST'])
 def translate_and_insert():
