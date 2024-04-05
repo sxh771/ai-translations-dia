@@ -36,12 +36,12 @@ logger.addHandler(file_handler)
 
 app = Flask(__name__)
 
-environment = os.environ.get("ENVIRONMENT")
+# environment = os.environ.get("ENVIRONMENT")
 
 # Defining Azure AI Translation connections.
-azure_translation_key = os.environ.get(f"AZURE_TRANSLATION_KEY_{environment.upper()}")
-azure_translation_endpoint = os.environ.get(f"AZURE_TRANSLATION_ENDPOINT_{environment.upper()}")
-azure_translation_location = os.environ.get(f"AZURE_TRANSLATION_LOCATION_{environment.upper()}")
+azure_translation_key = os.environ.get("AZURE_TRANSLATION_KEY")
+azure_translation_endpoint = os.environ.get("AZURE_TRANSLATION_ENDPOINT}")
+azure_translation_location = os.environ.get(f"AZURE_TRANSLATION_LOCATION")
 
 # Configure Speech SDK 
 speech_key = os.environ.get('SPEECH_KEY')
@@ -53,19 +53,19 @@ speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, au
 
 # Connection details from the Azure SQL Database
 driver = 'ODBC Driver 18 for SQL Server'
-server = os.environ.get(f"DB_SERVER_{environment.upper()}")
-database = os.environ.get(f"DB_NAME_{environment.upper()}")
-username = os.environ.get(f"DB_USERNAME_{environment.upper()}")
-password = os.environ.get(f"DB_PASSWORD_{environment.upper()}")
+server = os.environ.get("DB_SERVER")
+database = os.environ.get("DB_NAME")
+username = os.environ.get("DB_USERNAME")
+password = os.environ.get("DB_PASSWORD")
 
 connect_str = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
 container_name = 'ai-translation'
 
 # Check environment variables
 required_env_vars = [
-    f"AZURE_TRANSLATION_KEY_{environment.upper()}",
-    f"AZURE_TRANSLATION_ENDPOINT_{environment.upper()}",
-    f"AZURE_TRANSLATION_LOCATION_{environment.upper()}"
+    f"AZURE_TRANSLATION_KEY",
+    f"AZURE_TRANSLATION_ENDPOINT",
+    f"AZURE_TRANSLATION_LOCATION"
 ]
 for var in required_env_vars:
     if not os.environ.get(var):
