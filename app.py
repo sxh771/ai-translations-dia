@@ -231,8 +231,8 @@ def synthesize_speech():
         language = data['language']
         
         # Initialize the speech synthesizer
-        speech_key = os.environ.get('AZURE_SPEECH_KEY')
-        speech_region = os.environ.get('AZURE_SPEECH_REGION')
+        speech_key = os.getenv('AZURE_SPEECH_KEY')
+        speech_region = os.getenv('AZURE_SPEECH_REGION')
         if not speech_key or not speech_region:
             raise ValueError("Azure speech service credentials are not set.")
 
@@ -249,8 +249,8 @@ def synthesize_speech():
             return response
         elif result.reason == speechsdk.ResultReason.Canceled:
             cancellation_details = result.cancellation_details
-            logger.error(f"Speech synthesis canceled: {cancellation_details.reason}")
-            return jsonify({"error": "Speech synthesis canceled", "details": str(cancellation_details)}), 500
+            logger.error(f"Speech synthesis canceled: {cancellation_details.reason}. Error details: {cancellation_details.error_details}")
+            return jsonify({"error": "Speech synthesis canceled", "details": str(cancellation_details.error_details)}), 500
         else:
             logger.error("Failed to synthesize speech for an unknown reason.")
             return jsonify({"error": "Failed to synthesize speech"}), 500
