@@ -13,7 +13,6 @@ from azure.storage.blob import BlobServiceClient
 import azure.cognitiveservices.speech as speechsdk
 
 from urllib3 import disable_warnings, exceptions
-import azure.cognitiveservices.speech as speechsdk
 
 # Disable SSL warnings
 disable_warnings(exceptions.InsecureRequestWarning)
@@ -43,13 +42,13 @@ azure_translation_key = os.environ.get("AZURE_TRANSLATION_KEY")
 azure_translation_endpoint = os.environ.get("AZURE_TRANSLATION_ENDPOINT")
 azure_translation_location = os.environ.get(f"AZURE_TRANSLATION_LOCATION")
 
-# Configure Speech SDK 
-speech_key = os.environ.get('SPEECH_KEY')
-speech_region = os.environ.get('SPEECH_REGION')
-speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
-audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
-speech_config.speech_synthesis_voice_name = 'en-US-AvaMultilingualNeural'
-speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
+# # Configure Speech SDK 
+# speech_key = os.getenv('AZURE_SPEECH_KEY')
+# speech_region = os.getenv('AZURE_SPEECH_REGION')
+# speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+# audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
+# speech_config.speech_synthesis_voice_name = 'en-US-AvaMultilingualNeural'
+# speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
 
 # Connection details from the Azure SQL Database
 driver = 'ODBC Driver 18 for SQL Server'
@@ -63,9 +62,9 @@ container_name = 'ai-translation'
 
 # Check environment variables
 required_env_vars = [
-    f"AZURE_TRANSLATION_KEY",
-    f"AZURE_TRANSLATION_ENDPOINT",
-    f"AZURE_TRANSLATION_LOCATION"
+    "AZURE_TRANSLATION_KEY",
+    "AZURE_TRANSLATION_ENDPOINT",
+    "AZURE_TRANSLATION_LOCATION"
 ]
 for var in required_env_vars:
     if not os.environ.get(var):
