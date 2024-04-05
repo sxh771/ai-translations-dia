@@ -17,6 +17,9 @@ feedback.txt
 *.pptx
 *.pdf 
 
+audio_files/
+*.mp3
+
 ChatBotResearch/
 
 # Image file extensions to ignore
