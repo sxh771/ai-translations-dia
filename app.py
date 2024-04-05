@@ -40,7 +40,7 @@ app = Flask(__name__)
 
 # Defining Azure AI Translation connections.
 azure_translation_key = os.environ.get("AZURE_TRANSLATION_KEY")
-azure_translation_endpoint = os.environ.get("AZURE_TRANSLATION_ENDPOINT}")
+azure_translation_endpoint = os.environ.get("AZURE_TRANSLATION_ENDPOINT")
 azure_translation_location = os.environ.get(f"AZURE_TRANSLATION_LOCATION")
 
 # Configure Speech SDK 
