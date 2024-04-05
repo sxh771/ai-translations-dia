@@ -47,7 +47,7 @@ speech_key = os.environ.get('AZURE_SPEECH_KEY')
 speech_region = os.environ.get('AZURE_SPEECH_REGION')
 speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
 audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
-speech_config.speech_synthesis_voice_name = 'en-US-AvaMultilingualNeural'
+speech_config.speech_synthesis_voice_name = 'en-US-JennyNeural'
 speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
 
 # Connection details from the Azure SQL Database
@@ -57,7 +57,7 @@ database = os.environ.get("DB_NAME")
 username = os.environ.get("DB_USERNAME")
 password = os.environ.get("DB_PASSWORD")
 
-connect_str = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+connect_str = os.environ.get('AZURE_STORAGE_CONNECTION_STRING')
 container_name = 'ai-translation'
 
 # Check environment variables
@@ -72,7 +72,7 @@ for var in required_env_vars:
         raise EnvironmentError(f"Missing required environment variable: {var}")
 
 def upload_file_to_blob(file_stream, file_name):
-    connect_str = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+    connect_str = os.environ.get('AZURE_STORAGE_CONNECTION_STRING')
     container_name = 'ai-translation'
     
     # Add datetime stamp to the file name
@@ -230,30 +230,29 @@ def synthesize_speech():
         text = data['text']
         language = data['language']
         
-        # Initialize the speech synthesizer
-        speech_key = os.getenv('AZURE_SPEECH_KEY')
-        speech_region = os.getenv('AZURE_SPEECH_REGION')
+        # Initialize the speech synthesizer with explicit voice and output format
+        speech_key = os.environ.get('AZURE_SPEECH_KEY')
+        speech_region = os.environ.get('AZURE_SPEECH_REGION')
         if not speech_key or not speech_region:
             raise ValueError("Azure speech service credentials are not set.")
 
         speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
-        speech_config.speech_synthesis_language = language
-        synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config)
+        speech_config.speech_synthesis_voice_name = 'en-US-AvaNeural'
+        speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3)
+        
+        audio_config = speechsdk.audio.AudioOutputConfig(filename="output.mp3")
+        synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
         
         # Perform the speech synthesis
         result = synthesizer.speak_text_async(text).get()
         
         if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-            response = make_response(result.audio_data)
-            response.headers.set('Content-Type', 'audio/wav')
-            return response
+            logger.info("Speech synthesized to 'output.mp3'")
+            return jsonify({"message": "Speech synthesized successfully", "file": "output.mp3"}), 200
         elif result.reason == speechsdk.ResultReason.Canceled:
             cancellation_details = result.cancellation_details
             logger.error(f"Speech synthesis canceled: {cancellation_details.reason}. Error details: {cancellation_details.error_details}")
             return jsonify({"error": "Speech synthesis canceled", "details": str(cancellation_details.error_details)}), 500
-        else:
-            logger.error("Failed to synthesize speech for an unknown reason.")
-            return jsonify({"error": "Failed to synthesize speech"}), 500
     except Exception as e:
         logger.exception("An error occurred during speech synthesis.")
         return jsonify({"error": "An error occurred during speech synthesis", "details": str(e)}), 500
