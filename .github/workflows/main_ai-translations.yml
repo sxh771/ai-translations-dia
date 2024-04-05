@@ -8,7 +8,6 @@ on:
   push:
     branches:
       - main
-      - dev
   workflow_dispatch:
 
 jobs:
@@ -44,19 +43,13 @@ jobs:
             release.zip
             !venv/
 
-      - name: Set environment variable
-        run: |
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "ENVIRONMENT=PROD" >> $GITHUB_ENV
-          else
-            echo "ENVIRONMENT=DEV" >> $GITHUB_ENV
-          fi
-
   deploy:
     runs-on: ubuntu-latest
     needs: build
     environment:
-      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}
+      name: 'Production'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+    
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v3
@@ -72,5 +65,5 @@ jobs:
         id: deploy-to-webapp
         with:
           app-name: 'AI-translations'
-          slot-name: ${{ github.ref == 'refs/heads/main' && 'Production' || 'ai-translations-dev' }}
+          slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_D510DDE97FBA49729298B6B8AB1F6F21 }}
