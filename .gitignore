@@ -14,7 +14,10 @@ feedback.txt
 
 .DS_Store
 
+*.pptx
+*.pdf 
 
+ChatBotResearch/
 
 # Image file extensions to ignore
 images/
