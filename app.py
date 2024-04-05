@@ -1,10 +1,10 @@
 import logging
 from logging.handlers import RotatingFileHandler
-from flask import Flask, request, jsonify, render_template, make_response
+from flask import Flask, request, jsonify, render_template, make_response, send_from_directory, abort, session
 import os
 import requests
 import pyodbc
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 import fitz  # PyMuPDF
 import tempfile
@@ -35,6 +35,8 @@ logger.addHandler(file_handler)
 
 app = Flask(__name__)
 
+app.secret_key = 'your_secret_key_here'  # Set a secret key for session management
+
 # environment = os.environ.get("ENVIRONMENT")
 
 # Defining Azure AI Translation connections.
@@ -47,7 +49,8 @@ speech_key = os.environ.get('AZURE_SPEECH_KEY')
 speech_region = os.environ.get('AZURE_SPEECH_REGION')
 speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
 audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
-speech_config.speech_synthesis_voice_name = 'en-US-JennyNeural'
+speech_config.speech_synthesis_voice_name = 'en-US-AvaNeural'
+speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3)
 speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
 
 # Connection details from the Azure SQL Database
@@ -223,39 +226,49 @@ def ensure_feedback_table_exists(conn_str):
     except Exception as e:
         logger.error(f"Failed to check/create 'Feedback' table: {e}")
 
+# Directory where the synthesized audio files will be saved
+audio_files_directory = os.path.join(app.root_path, 'audio_files')
+
+# Create the directory if it does not exist
+if not os.path.exists(audio_files_directory):
+    os.makedirs(audio_files_directory)
+
+# Global variable to track the last synthesis time
+last_speech_synthesis_time = None
+minimum_interval_seconds = 5  # Minimum allowed interval between syntheses
+
 @app.route('/synthesize_speech', methods=['POST'])
 def synthesize_speech():
-    try:
-        data = request.get_json()
-        text = data['text']
-        language = data['language']
-        
-        # Initialize the speech synthesizer with explicit voice and output format
-        speech_key = os.environ.get('AZURE_SPEECH_KEY')
-        speech_region = os.environ.get('AZURE_SPEECH_REGION')
-        if not speech_key or not speech_region:
-            raise ValueError("Azure speech service credentials are not set.")
+    data = request.get_json()
+    text = data['text']
+    language = data['language']
 
-        speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
-        speech_config.speech_synthesis_voice_name = 'en-US-AvaNeural'
-        speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3)
-        
-        audio_config = speechsdk.audio.AudioOutputConfig(filename="output.mp3")
-        synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
-        
-        # Perform the speech synthesis
-        result = synthesizer.speak_text_async(text).get()
-        
-        if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
-            logger.info("Speech synthesized to 'output.mp3'")
-            return jsonify({"message": "Speech synthesized successfully", "file": "output.mp3"}), 200
-        elif result.reason == speechsdk.ResultReason.Canceled:
-            cancellation_details = result.cancellation_details
-            logger.error(f"Speech synthesis canceled: {cancellation_details.reason}. Error details: {cancellation_details.error_details}")
-            return jsonify({"error": "Speech synthesis canceled", "details": str(cancellation_details.error_details)}), 500
-    except Exception as e:
-        logger.exception("An error occurred during speech synthesis.")
-        return jsonify({"error": "An error occurred during speech synthesis", "details": str(e)}), 500
+    # Generate a unique filename for each synthesis request
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    filename = f"output_{timestamp}.mp3"
+    
+    # Initialize the speech synthesizer with explicit voice and output format
+    speech_key = os.environ.get('AZURE_SPEECH_KEY')
+    speech_region = os.environ.get('AZURE_SPEECH_REGION')
+    if not speech_key or not speech_region:
+        raise ValueError("Azure speech service credentials are not set.")
+
+    speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+    speech_config.speech_synthesis_voice_name = 'en-US-JennyMultilingualNeural'
+    speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3)
+    
+    audio_config = speechsdk.audio.AudioOutputConfig(filename=os.path.join(audio_files_directory, filename))
+    synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
+    
+    # Perform the speech synthesis
+    result = synthesizer.speak_text_async(text).get()
+    
+    if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+        logger.info(f"Speech synthesized to '{filename}'")
+        return jsonify({"message": "Speech synthesized successfully", "filename": filename}), 200
+    else:
+        logger.error("Speech synthesis failed.")
+        return jsonify({"error": "Speech synthesis failed"}), 500
 
 @app.route('/translate_and_insert', methods=['POST'])
 def translate_and_insert():
@@ -397,6 +410,13 @@ def update_ratings():
     except Exception as e:
         logger.error(f"Failed to update ratings: {e}")
         return jsonify({"error": "Failed to update ratings"}), 500
+
+@app.route('/audio/<filename>')
+def get_audio(filename):
+    """Serve an audio file from the 'audio_files' directory."""
+    if not os.path.exists(os.path.join(audio_files_directory, filename)):
+        abort(404)  # Return a 404 if the file does not exist
+    return send_from_directory(audio_files_directory, filename, mimetype='audio/mpeg')
 
 if __name__ == '__main__':
     logger.info("Starting the Flask application...")
