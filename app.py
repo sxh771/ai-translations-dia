@@ -1,22 +1,18 @@
 import logging
 from logging.handlers import RotatingFileHandler
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, make_response, send_from_directory, abort, session
 import os
 import requests
 import pyodbc
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 import fitz  # PyMuPDF
-from werkzeug.utils import secure_filename
 import tempfile
 import docx2txt
-from azure.storage.blob import BlobServiceClient, BlobClient, ContainerClient
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+from azure.storage.blob import BlobServiceClient
+import azure.cognitiveservices.speech as speechsdk
+
 from urllib3 import disable_warnings, exceptions
-
-from requests.sessions import Session
-
 
 # Disable SSL warnings
 disable_warnings(exceptions.InsecureRequestWarning)
@@ -39,23 +35,23 @@ logger.addHandler(file_handler)
 
 app = Flask(__name__)
 
-# Set the secret key for Flask sessions
-# os.environ['CURL_CA_BUNDLE'] = ""
+app.secret_key = 'your_secret_key_here'  # Set a secret key for session management
 
+# environment = os.environ.get("ENVIRONMENT")
 
-# # Set the environment variables
-# os.environ['CERT_PATH'] = '/etc/ssl/certs/cacert1.pem'
-# os.environ['CERT_DIR'] = '/etc/ssl/certs/'
-# os.environ['SSL_CERT_FILE'] = os.environ['CERT_PATH']
-# os.environ['SSL_CERT_DIR'] = os.environ['CERT_DIR']
-# os.environ['REQUESTS_CA_BUNDLE'] = os.environ['CERT_PATH']
-
-
-# os.environ['REQUESTS_CA_BUNDLE'] = "/opt/homebrew/Caskroom/miniconda/base/lib/python3.11/site-packages/certifi/cacert.pem"
 # Defining Azure AI Translation connections.
 azure_translation_key = os.environ.get("AZURE_TRANSLATION_KEY")
 azure_translation_endpoint = os.environ.get("AZURE_TRANSLATION_ENDPOINT")
-azure_translation_location = os.environ.get("AZURE_TRANSLATION_LOCATION")
+azure_translation_location = os.environ.get(f"AZURE_TRANSLATION_LOCATION")
+
+# # Configure Speech SDK 
+speech_key = os.environ.get('AZURE_SPEECH_KEY')
+speech_region = os.environ.get('AZURE_SPEECH_REGION')
+speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
+speech_config.speech_synthesis_voice_name = 'en-US-AvaNeural'
+speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3)
+speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
 
 # Connection details from the Azure SQL Database
 driver = 'ODBC Driver 18 for SQL Server'
@@ -64,31 +60,22 @@ database = os.environ.get("DB_NAME")
 username = os.environ.get("DB_USERNAME")
 password = os.environ.get("DB_PASSWORD")
 
-connect_str = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
-# connect_str = 'BlobEndpoint=https://aitranslation.blob.core.windows.net/;QueueEndpoint=https://aitranslation.queue.core.windows.net/;FileEndpoint=https://aitranslation.file.core.windows.net/;TableEndpoint=https://aitranslation.table.core.windows.net/;SharedAccessSignature=sv=2022-11-02&ss=bfqt&srt=sco&sp=rwdlacupiytfx&se=2024-03-09T23:23:42Z&st=2024-03-09T15:23:42Z&sip=192.168.1.175&spr=https&sig=yg6jvPWhIrOMbj8Ae8ZKxuT%2FRCc9BazBcDHTn5M4hng%3D'
+connect_str = os.environ.get('AZURE_STORAGE_CONNECTION_STRING')
 container_name = 'ai-translation'
 
-
 # Check environment variables
-required_env_vars = ['AZURE_TRANSLATION_KEY', 'AZURE_TRANSLATION_ENDPOINT', 'AZURE_TRANSLATION_LOCATION']
+required_env_vars = [
+    "AZURE_TRANSLATION_KEY",
+    "AZURE_TRANSLATION_ENDPOINT",
+    "AZURE_TRANSLATION_LOCATION"
+]
 for var in required_env_vars:
     if not os.environ.get(var):
         logger.error(f"Missing required environment variable: {var}")
         raise EnvironmentError(f"Missing required environment variable: {var}")
 
-
-# def custom_https_transport(request: HttpRequest):
-#     session = Session()
-#     session.verify = False  # Disable SSL certificate verification
-#     return session.send(request.http_request, **request.context.options)
-
-
-# blob_service_client = BlobServiceClient.from_connection_string(connect_str, transport=custom_https_transport)
-
-
-
 def upload_file_to_blob(file_stream, file_name):
-    connect_str = os.getenv('AZURE_STORAGE_CONNECTION_STRING')
+    connect_str = os.environ.get('AZURE_STORAGE_CONNECTION_STRING')
     container_name = 'ai-translation'
     
     # Add datetime stamp to the file name
@@ -239,7 +226,49 @@ def ensure_feedback_table_exists(conn_str):
     except Exception as e:
         logger.error(f"Failed to check/create 'Feedback' table: {e}")
 
+# Directory where the synthesized audio files will be saved
+audio_files_directory = os.path.join(app.root_path, 'audio_files')
 
+# Create the directory if it does not exist
+if not os.path.exists(audio_files_directory):
+    os.makedirs(audio_files_directory)
+
+# Global variable to track the last synthesis time
+last_speech_synthesis_time = None
+minimum_interval_seconds = 5  # Minimum allowed interval between syntheses
+
+@app.route('/synthesize_speech', methods=['POST'])
+def synthesize_speech():
+    data = request.get_json()
+    text = data['text']
+    language = data['language']
+
+    # Generate a unique filename for each synthesis request
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    filename = f"output_{timestamp}.mp3"
+    
+    # Initialize the speech synthesizer with explicit voice and output format
+    speech_key = os.environ.get('AZURE_SPEECH_KEY')
+    speech_region = os.environ.get('AZURE_SPEECH_REGION')
+    if not speech_key or not speech_region:
+        raise ValueError("Azure speech service credentials are not set.")
+
+    speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
+    speech_config.speech_synthesis_voice_name = 'en-US-JennyMultilingualNeural'
+    speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3)
+    
+    audio_config = speechsdk.audio.AudioOutputConfig(filename=os.path.join(audio_files_directory, filename))
+    synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
+    
+    # Perform the speech synthesis
+    result = synthesizer.speak_text_async(text).get()
+    
+    if result.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
+        logger.info(f"Speech synthesized to '{filename}'")
+        return jsonify({"message": "Speech synthesized successfully", "filename": filename}), 200
+    else:
+        logger.error("Speech synthesis failed.")
+        return jsonify({"error": "Speech synthesis failed"}), 500
 
 @app.route('/translate_and_insert', methods=['POST'])
 def translate_and_insert():
@@ -250,6 +279,10 @@ def translate_and_insert():
     # Check if text input is provided
     if 'text' in request.form and request.form['text'].strip():
         extracted_text = request.form['text'].strip()
+        # Synthesize speech for the input text
+        speech_synthesis_result = speech_synthesizer.speak_text_async(extracted_text).get()
+        if speech_synthesis_result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
+            logger.error("Failed to synthesize speech for the input text.")
     # Check if a file is uploaded; this will override text input if both are provided
     if 'file' in request.files and request.files['file']:
         file = request.files['file']
@@ -271,6 +304,11 @@ def translate_and_insert():
     try:
         # Use 'extracted_text' instead of 'input_text'
         translated_text, detected_language = translate_text(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
+
+        # Synthesize speech for the translated text
+        speech_synthesis_result = speech_synthesizer.speak_text_async(translated_text).get()
+        if speech_synthesis_result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
+            logger.error("Failed to synthesize speech for the translated text.")
 
         # Define your connection string (adjusted for your application's needs)
         conn_str = (
@@ -372,6 +410,13 @@ def update_ratings():
     except Exception as e:
         logger.error(f"Failed to update ratings: {e}")
         return jsonify({"error": "Failed to update ratings"}), 500
+
+@app.route('/audio/<filename>')
+def get_audio(filename):
+    """Serve an audio file from the 'audio_files' directory."""
+    if not os.path.exists(os.path.join(audio_files_directory, filename)):
+        abort(404)  # Return a 404 if the file does not exist
+    return send_from_directory(audio_files_directory, filename, mimetype='audio/mpeg')
 
 if __name__ == '__main__':
     logger.info("Starting the Flask application...")

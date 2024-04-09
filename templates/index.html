@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>HTML Translator Service</title>
 
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css">
+
     <style>
         /* Remove fixed positioning from feedback form */
         #feedback_form {
@@ -129,8 +131,11 @@
                     Drag and drop your file here
                 </div>
                 <input type="file" id="file_input" name="file" accept=".txt,.pdf,.docx" style="display: none;"><br>
-                <textarea id="text_input" name="text" placeholder="Enter text to translate or choose a file below"></textarea><br>
-                <!-- Add a paragraph -->
+                <!-- Original Text Input Area with Speaker Icon -->
+                <textarea id="text_input" name="text" placeholder="Enter text to translate or choose a file below"></textarea>
+                <i id="original_speaker" class="fa fa-volume-up" aria-hidden="true" onclick="playAudio('original')"></i>
+                <br>
+                <br>
 
                 <p>Supported file types: .txt, .pdf, .docx</p>
 
@@ -152,6 +157,7 @@
                     <div id="translated_content_A" class="translated-text-box" readonly>
                         <!-- Translated text by Model A will be dynamically inserted here -->
                     </div>
+                    <i id="translated_speaker_A" class="fa fa-volume-up" aria-hidden="true" onclick="playAudio('translated_A')"></i>
                 </div>
                 <div class="translation-column">
                     <h3 class="translated-header">Translated by Model B</h3>
@@ -237,40 +243,32 @@
 
         document.getElementById('textInputForm').addEventListener('submit', function(e) {
             e.preventDefault(); // Prevent default form submission
-            const formData = new FormData(this); // 'this' refers to the form
+            const formData = new FormData(this);
             const textInput = document.getElementById('text_input').value;
-            const fileInput = document.getElementById('file_input').files.length; // Check if any file is selected
+            const fileInput = document.getElementById('file_input').files.length;
 
-            // Only show the spinner if text input is provided or a file is selected
             if (textInput || fileInput) {
                 document.getElementById('loadingSpinner').style.display = 'block';
-                document.getElementById('thinkingMessage').style.display = 'block'; // Show the Thinking message
+                document.getElementById('thinkingMessage').style.display = 'block';
 
                 fetch('/translate_and_insert', {
                     method: 'POST',
                     body: formData,
                 })
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
                     console.log(data);
-                    // Display the translated text in the "Translated by Model A" box
                     document.getElementById('translated_content_A').innerHTML = `<p>${data.translated_text}</p>`;
                 })
                 .catch(error => {
                     console.error('Error:', error);
                 })
                 .finally(() => {
-                    // Hide the spinner and the Thinking message
                     document.getElementById('loadingSpinner').style.display = 'none';
-                    document.getElementById('thinkingMessage').style.display = 'none'; // Hide the Thinking message
-                });
-            }
+                    document.getElementById('thinkingMessage').style.display = 'none';
         });
+    }
+});
 
 
     document.getElementById('feedbackForm').onsubmit = function(e) {
@@ -313,80 +311,69 @@
         });
     });
 
+           // Flag to indicate whether the event listener has been added
+           let isEventListenerAdded = false;
 
-    // Add the provided JavaScript snippet here
-    document.getElementById('optionA').addEventListener('click', function() {
-    fetch('/update_ratings', {
+// Flags to track if audio is currently playing
+let originalAudioPlaying = false;
+let translatedAAudioPlaying = false;
+
+function playAudio(type) {
+    let text, language;
+    if (type === 'original') {
+        text = document.getElementById('text_input').value;
+        language = document.getElementById('language').value;
+        if (!originalAudioPlaying) {
+            originalAudioPlaying = true;
+            synthesizeSpeech(text, language, 'original');
+        }
+    } else if (type === 'translated_A') {
+        text = document.getElementById('translated_content_A').innerText;
+        language = document.getElementById('language').value;
+        if (!translatedAAudioPlaying) {
+            translatedAAudioPlaying = true;
+            synthesizeSpeech(text, language, 'translated_A');
+        }
+    }
+}
+
+function synthesizeSpeech(text, language, type) {
+    fetch('/synthesize_speech', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ action: "A is better" }),
+        body: JSON.stringify({ text: text, language: language }),
     })
     .then(response => response.json())
     .then(data => {
-        console.log(data.message);
-        // Optionally, fetch and update the ratings displayed on the page
+        const audioUrl = `/audio/${data.filename}`;
+        const audio = new Audio(audioUrl);
+        audio.play().catch(e => console.error("Error playing the audio:", e));
+        audio.onended = function() {
+            if (type === 'original') {
+                originalAudioPlaying = false;
+            } else if (type === 'translated_A') {
+                translatedAAudioPlaying = false;
+            }
+        };
     })
-    .catch(error => {
-        console.error('Error:', error);
-    });
-});
+    .catch(error => console.error('Error:', error));
+}
 
-document.getElementById('optionB').addEventListener('click', function() {
-    fetch('/update_ratings', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ action: "B is better" }),
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log(data.message);
-        // Optionally, fetch and update the ratings displayed on the page
-    })
-    .catch(error => {
-        console.error('Error:', error);
-    });
-});
+// Function to add the event listener if it hasn't been added already
+function addEventListenerIfNeeded() {
+    if (!isEventListenerAdded) {
+        var originalSpeakerIcon = document.getElementById('original_speaker');
+        originalSpeakerIcon.addEventListener('click', function() { playAudio('original'); });
+        var translatedSpeakerIconA = document.getElementById('translated_speaker_A');
+        translatedSpeakerIconA.addEventListener('click', function() { playAudio('translated_A'); });
+        isEventListenerAdded = true;
+    }
+}
 
-document.getElementById('optionC').addEventListener('click', function() {
-    fetch('/update_ratings', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ action: "Tie" }),
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log(data.message);
-        // Optionally, fetch and update the ratings displayed on the page
-    })
-    .catch(error => {
-        console.error('Error:', error);
-    });
-});
-
-document.getElementById('optionD').addEventListener('click', function() {
-    fetch('/update_ratings', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ action: "Both are bad" }),
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log(data.message);
-        // Optionally, fetch and update the ratings displayed on the page
-    })
-    .catch(error => {
-        console.error('Error:', error);
-    });
-});
-
+// Call this function when your page loads or when it's appropriate to add the event listener
+addEventListenerIfNeeded();
 </script>
 </body>
 </html>
