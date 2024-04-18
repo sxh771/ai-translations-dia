@@ -13,13 +13,16 @@ notes.txt
 feedback.txt
 
 .DS_Store
-
+test*.*
 *.pptx
 *.pdf 
+*.doc*
+*.wav
 
 audio_files/
 *.mp3
-
+bearer_token.txt
+get_token.py
 ChatBotResearch/
 
 # Image file extensions to ignore

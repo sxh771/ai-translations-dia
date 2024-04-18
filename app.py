@@ -11,6 +11,7 @@ import tempfile
 import docx2txt
 from azure.storage.blob import BlobServiceClient
 import azure.cognitiveservices.speech as speechsdk
+from openai import AzureOpenAI
 
 from urllib3 import disable_warnings, exceptions
 
@@ -35,7 +36,7 @@ logger.addHandler(file_handler)
 
 app = Flask(__name__)
 
-app.secret_key = 'your_secret_key_here'  # Set a secret key for session management
+# app.secret_key = 'your_secret_key_here'  # Set a secret key for session management
 
 # environment = os.environ.get("ENVIRONMENT")
 
@@ -53,6 +54,13 @@ speech_config.speech_synthesis_voice_name = 'en-US-AvaNeural'
 speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3)
 speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
 
+# Add a new AzureOpenAI client for model B
+client_b = AzureOpenAI(
+  api_key = os.getenv("AZURE_OPENAI_API_KEY"),  
+  api_version = "2024-02-01",
+  azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+)
+
 # Connection details from the Azure SQL Database
 driver = 'ODBC Driver 18 for SQL Server'
 server = os.environ.get("DB_SERVER")
@@ -60,54 +68,15 @@ database = os.environ.get("DB_NAME")
 username = os.environ.get("DB_USERNAME")
 password = os.environ.get("DB_PASSWORD")
 
-connect_str = os.environ.get('AZURE_STORAGE_CONNECTION_STRING')
-container_name = 'ai-translation'
-
-# Check environment variables
-required_env_vars = [
-    "AZURE_TRANSLATION_KEY",
-    "AZURE_TRANSLATION_ENDPOINT",
-    "AZURE_TRANSLATION_LOCATION"
-]
-for var in required_env_vars:
-    if not os.environ.get(var):
-        logger.error(f"Missing required environment variable: {var}")
-        raise EnvironmentError(f"Missing required environment variable: {var}")
-
-def upload_file_to_blob(file_stream, file_name):
-    connect_str = os.environ.get('AZURE_STORAGE_CONNECTION_STRING')
-    container_name = 'ai-translation'
-    
-    # Add datetime stamp to the file name
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    file_name_with_timestamp = f"{timestamp}_{file_name}"
-
-    blob_service_client = BlobServiceClient.from_connection_string(connect_str)
-    blob_client = blob_service_client.get_blob_client(container=container_name, blob=file_name_with_timestamp)
-
-    file_stream.seek(0)
-    blob_client.upload_blob(file_stream, overwrite=True)
-
-    blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{file_name_with_timestamp}"
-    return blob_url
-
-def extract_text_from_pdf(pdf_file):
-    text = ""
-    with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
-        for page in doc:
-            text += page.get_text()
-    return text
-
-def extract_text_from_docx(docx_file_stream):
-    # Create a temporary file to save the uploaded .docx file
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        # Write the content of the uploaded file to the temporary file
-        docx_file_stream.seek(0)  # Go to the beginning of the file stream
-        tmp_file.write(docx_file_stream.read())
-        # Use the path of the temporary file with docx2txt
-        text = docx2txt.process(tmp_file.name)
-    return text
-
+# Azure Blob Storage connection details
+blob_connection_string = os.environ.get("BLOB_CONNECTION_STRING")
+if not blob_connection_string:
+    logger.error("BLOB_CONNECTION_STRING environment variable is not set.")
+    raise ValueError("BLOB_CONNECTION_STRING environment variable is not set.")
+blob_container_name = os.environ.get("BLOB_CONTAINER_NAME")
+if not blob_container_name:
+    logger.error("BLOB_CONTAINER_NAME environment variable is not set.")
+    raise ValueError("BLOB_CONTAINER_NAME environment variable is not set.")
 
 # Default page.
 @app.route('/')
@@ -165,66 +134,47 @@ def translate_text(text, azure_translation_key, azure_translation_endpoint, azur
 
     return translated_text, detected_language
 
-def ensure_table_exists(conn_str):
-    create_table_query = """
-    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'TranslatedDocuments')
-    BEGIN
-        CREATE TABLE TranslatedDocuments (
-            id INT PRIMARY KEY IDENTITY(1,1),
-            input_text NVARCHAR(MAX),
-            detected_language NVARCHAR(100),
-            translated_text NVARCHAR(MAX),
-            output_language NVARCHAR(100),
-            created_at DATETIME2 DEFAULT GETDATE(),
-            blob_url NVARCHAR(MAX),
-            user_ip NVARCHAR(100)  -- Add this line
-        )
-    END
-    ELSE
-    BEGIN
-        IF NOT EXISTS (SELECT * FROM sys.columns 
-                       WHERE Name = N'created_at' AND Object_ID = Object_ID(N'TranslatedDocuments'))
-        BEGIN
-            ALTER TABLE TranslatedDocuments ADD created_at DATETIME2 DEFAULT GETDATE()
-        END
-        IF NOT EXISTS (SELECT * FROM sys.columns 
-                       WHERE Name = N'blob_url' AND Object_ID = Object_ID(N'TranslatedDocuments'))
-        BEGIN
-            ALTER TABLE TranslatedDocuments ADD blob_url NVARCHAR(MAX)
-        END
-        IF NOT EXISTS (SELECT * FROM sys.columns 
-                       WHERE Name = N'user_ip' AND Object_ID = Object_ID(N'TranslatedDocuments'))  -- Add this block
-        BEGIN
-            ALTER TABLE TranslatedDocuments ADD user_ip NVARCHAR(100)
-        END
-    END
-    """
-    try:
-        with pyodbc.connect(conn_str) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(create_table_query)
-                conn.commit()
-                logger.info("Checked/created/updated table 'TranslatedDocuments'.")
-    except Exception as e:
-        logger.error(f"Failed to check/create/update table: {e}")
+def extract_text_from_pdf(file_stream):
+    """Extract text from a PDF file using PyMuPDF."""
+    logger.info("Extracting text from PDF.")
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        temp_file.write(file_stream.read())
+        temp_file_path = temp_file.name
 
-def ensure_feedback_table_exists(conn_str):
-    create_feedback_table_query = """
-    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Feedback')
-    CREATE TABLE Feedback (
-        id INT PRIMARY KEY IDENTITY(1,1),
-        feedback_text NVARCHAR(MAX),
-        created_at DATETIME2 DEFAULT GETDATE()
-    )
-    """
-    try:
-        with pyodbc.connect(conn_str) as conn:
-            with conn.cursor() as cursor:
-                cursor.execute(create_feedback_table_query)
-                conn.commit()
-                logger.info("Checked/created table 'Feedback'.")
-    except Exception as e:
-        logger.error(f"Failed to check/create 'Feedback' table: {e}")
+    with fitz.open(temp_file_path) as doc:
+        text = ""
+        for page in doc:
+            text += page.get_text()
+
+    os.remove(temp_file_path)
+    return text
+
+def extract_text_from_docx(file_stream):
+    """Extract text from a DOCX file using docx2txt."""
+    logger.info("Extracting text from DOCX.")
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        temp_file.write(file_stream.read())
+        temp_file_path = temp_file.name
+
+    text = docx2txt.process(temp_file_path)
+
+    os.remove(temp_file_path)
+    return text
+
+def upload_file_to_blob(file_stream, filename):
+    """Upload a file to Azure Blob Storage and return the blob URL."""
+    logger.info(f"Uploading file '{filename}' to Azure Blob Storage.")
+    
+    blob_service_client = BlobServiceClient.from_connection_string(blob_connection_string)
+    # Ensure container name and blob name are not None
+    if not blob_container_name or not filename:
+        raise ValueError("Container name or blob name is missing.")
+    blob_client = blob_service_client.get_blob_client(container=blob_container_name, blob=filename)
+
+    file_stream.seek(0)
+    blob_client.upload_blob(file_stream, overwrite=True)
+
+    return blob_client.url
 
 # Directory where the synthesized audio files will be saved
 audio_files_directory = os.path.join(app.root_path, 'audio_files')
@@ -245,11 +195,19 @@ def synthesize_speech():
 
     # Generate a unique filename for each synthesis request
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    filename = f"output_{timestamp}.mp3"
-    
-    # Initialize the speech synthesizer with explicit voice and output format
-    speech_key = os.environ.get('AZURE_SPEECH_KEY')
-    speech_region = os.environ.get('AZURE_SPEECH_REGION')
+    filename = f"{timestamp}_{language}.mp3"
+
+    global last_speech_synthesis_time
+    current_time = datetime.now()
+
+    if last_speech_synthesis_time is not None:
+        elapsed_seconds = (current_time - last_speech_synthesis_time).total_seconds()
+        if elapsed_seconds < minimum_interval_seconds:
+            remaining_seconds = minimum_interval_seconds - elapsed_seconds
+            return jsonify({"error": f"Please wait {remaining_seconds:.1f} seconds before making another request."}), 429
+
+    last_speech_synthesis_time = current_time
+
     if not speech_key or not speech_region:
         raise ValueError("Azure speech service credentials are not set.")
 
@@ -269,6 +227,35 @@ def synthesize_speech():
     else:
         logger.error("Speech synthesis failed.")
         return jsonify({"error": "Speech synthesis failed"}), 500
+
+@app.route('/update_ratings', methods=['POST'])
+def update_ratings():
+    data = request.get_json()
+    action = data['action']
+    
+    try:
+        with pyodbc.connect(conn_str) as conn:
+            with conn.cursor() as cursor:
+                if action == "A is better":
+                    cursor.execute("UPDATE ModelRatings SET ratingA = ratingA + 1 WHERE id = 1")
+                elif action == "B is better":
+                    cursor.execute("UPDATE ModelRatings SET ratingB = ratingB + 1 WHERE id = 1")
+                elif action == "Tie":
+                    cursor.execute("UPDATE ModelRatings SET ratingA = ratingA + 1, ratingB = ratingB + 1 WHERE id = 1")
+                elif action == "Both are bad":
+                    cursor.execute("UPDATE ModelRatings SET ratingA = ratingA - 1, ratingB = ratingB - 1 WHERE id = 1")
+                conn.commit()
+        return jsonify({"message": "Ratings updated successfully"}), 200
+    except Exception as e:
+        logger.error(f"Failed to update ratings: {e}")
+        return jsonify({"error": "Failed to update ratings"}), 500
+
+@app.route('/audio/<filename>')
+def get_audio(filename):
+    """Serve an audio file from the 'audio_files' directory."""
+    if not os.path.exists(os.path.join(audio_files_directory, filename)):
+        abort(404)  # Return a 404 if the file does not exist
+    return send_from_directory(audio_files_directory, filename, mimetype='audio/mpeg')
 
 @app.route('/translate_and_insert', methods=['POST'])
 def translate_and_insert():
@@ -303,10 +290,27 @@ def translate_and_insert():
 
     try:
         # Use 'extracted_text' instead of 'input_text'
-        translated_text, detected_language = translate_text(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
+        translated_text_a, detected_language = translate_text(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
+        
+        # Translation using model B
+        try:
+            chunks = [extracted_text[i:i+4096] for i in range(0, len(extracted_text), 4096)]
+            translated_text_b = ""
+            for chunk in chunks:
+                response_b = client_b.chat.completions.create(
+                    model="AI-Translation-Test",
+                    messages=[
+                        {"role": "system", "content": "Assistant is a large language model trained by OpenAI."},
+                        {"role": "user", "content": f"Translate this to {output_language}: {chunk}"}
+                    ]
+                )
+                translated_text_b += response_b.choices[0].message.content
+        except Exception as e:
+            logger.error(f"Failed to translate using model B: {e}")
+            translated_text_b = "Translation failed"
 
         # Synthesize speech for the translated text
-        speech_synthesis_result = speech_synthesizer.speak_text_async(translated_text).get()
+        speech_synthesis_result = speech_synthesizer.speak_text_async(translated_text_a).get()
         if speech_synthesis_result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
             logger.error("Failed to synthesize speech for the translated text.")
 
@@ -318,7 +322,7 @@ def translate_and_insert():
             f"UID={username};"
             f"PWD={password};"
             "TrustServerCertificate=yes;"
-            "Connection Timeout=500;"
+            "Connection Timeout=1500;"
         )
 
         # Ensure the table exists before inserting data
@@ -332,91 +336,41 @@ def translate_and_insert():
         user_ip = request.remote_addr
 
         # Update your insert query to include the user_ip
-        insert_query = """INSERT INTO TranslatedDocuments (input_text, detected_language, translated_text, output_language, blob_url, user_ip) VALUES (?, ?, ?, ?, ?, ?)"""
+        insert_query = """INSERT INTO TranslatedDocuments (input_text, detected_language, translated_text_a, translated_text_b, output_language, blob_url, user_ip) VALUES (?, ?, ?, ?, ?, ?, ?)"""
 
         # Include 'user_ip' in the cursor.execute call
-        cursor.execute(insert_query, (extracted_text, detected_language, translated_text, output_language, blob_url if blob_url else "", user_ip))
+        cursor.execute(insert_query, (extracted_text, detected_language, translated_text_a, translated_text_b, output_language, blob_url if blob_url else "", user_ip))
         connection.commit()
 
-        return jsonify({"message": "Data inserted successfully", "translated_text": translated_text, "detected_language": detected_language, "output_language": output_language}), 200
+        return jsonify({
+            "message": "Data inserted successfully",
+            "translated_text_a": translated_text_a,
+            "translated_text_b": translated_text_b,
+            "detected_language": detected_language,
+            "output_language": output_language
+        }), 200
 
     except Exception as e:
         logger.error(f"Failed to translate and insert data: {e}")
         return jsonify({"error": "Failed to translate and insert data"}), 500
 
-@app.route('/submit_feedback', methods=['POST'])
-def submit_feedback():
-    data = request.get_json()
-    feedback_text = data['feedback']
-
-    try:
-        # Define your connection string (adjusted for your application's needs)
-        conn_str = (
-            f"DRIVER={{{driver}}};"
-            f"SERVER={server};"
-            f"DATABASE={database};"
-            f"UID={username};"
-            f"PWD={password};"
-            "TrustServerCertificate=yes;"
-            "Connection Timeout=30;"
-        )
-
-        # Ensure the Feedback table exists before inserting data
-        ensure_feedback_table_exists(conn_str)
-
-        # Connect to the database
-        with pyodbc.connect(conn_str) as conn:
-            with conn.cursor() as cursor:
-                # Insert feedback into the database
-                insert_query = """INSERT INTO Feedback (feedback_text) VALUES (?)"""
-                cursor.execute(insert_query, (feedback_text,))
-                conn.commit()
-
-        logger.info("Feedback successfully saved.")
-        return jsonify({"message": "Feedback submitted successfully"}), 200
-
-    except Exception as e:
-        logger.error(f"Failed to submit feedback: {e}")
-        return jsonify({"error": "Failed to submit feedback"}), 500
-
-@app.route('/update_ratings', methods=['POST'])
-def update_ratings():
-    data = request.get_json()
-    action = data['action']
-    
-    conn_str = (
-        f"DRIVER={{{driver}}};"
-        f"SERVER={server};"
-        f"DATABASE={database};"
-        f"UID={username};"
-        f"PWD={password};"
-        "TrustServerCertificate=yes;"
-        "Connection Timeout=30;"
+def ensure_table_exists(conn_str):
+    create_table_query = """
+    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'TranslatedDocuments')
+    CREATE TABLE TranslatedDocuments (
+        input_text NVARCHAR(MAX),
+        detected_language NVARCHAR(50),
+        translated_text_a NVARCHAR(MAX),
+        translated_text_b NVARCHAR(MAX),
+        output_language NVARCHAR(50),
+        blob_url NVARCHAR(MAX),
+        user_ip NVARCHAR(50)
     )
-    
-    try:
-        with pyodbc.connect(conn_str) as conn:
-            with conn.cursor() as cursor:
-                if action == "A is better":
-                    cursor.execute("UPDATE ModelRatings SET ratingA = ratingA + 1 WHERE id = 1")
-                elif action == "B is better":
-                    cursor.execute("UPDATE ModelRatings SET ratingB = ratingB + 1 WHERE id = 1")
-                elif action == "Tie":
-                    cursor.execute("UPDATE ModelRatings SET ratingA = ratingA + 1, ratingB = ratingB + 1 WHERE id = 1")
-                elif action == "Both are bad":
-                    cursor.execute("UPDATE ModelRatings SET ratingA = ratingA - 1, ratingB = ratingB - 1 WHERE id = 1")
-                conn.commit()
-        return jsonify({"message": "Ratings updated successfully"}), 200
-    except Exception as e:
-        logger.error(f"Failed to update ratings: {e}")
-        return jsonify({"error": "Failed to update ratings"}), 500
-
-@app.route('/audio/<filename>')
-def get_audio(filename):
-    """Serve an audio file from the 'audio_files' directory."""
-    if not os.path.exists(os.path.join(audio_files_directory, filename)):
-        abort(404)  # Return a 404 if the file does not exist
-    return send_from_directory(audio_files_directory, filename, mimetype='audio/mpeg')
+    """
+    with pyodbc.connect(conn_str) as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(create_table_query)
+            conn.commit()
 
 if __name__ == '__main__':
     logger.info("Starting the Flask application...")

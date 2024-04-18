@@ -8,3 +8,4 @@ pyodbc
 docx2txt
 azure-storage-blob
 azure-cognitiveservices-speech
+openai==0.28.1
