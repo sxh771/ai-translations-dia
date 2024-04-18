@@ -36,6 +36,11 @@ logger.addHandler(file_handler)
 
 app = Flask(__name__)
 
+from werkzeug.middleware.profiler import ProfilerMiddleware
+
+app.config['PROFILE'] = True
+app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[30])
+
 # app.secret_key = 'your_secret_key_here'  # Set a secret key for session management
 
 # environment = os.environ.get("ENVIRONMENT")
@@ -329,7 +334,7 @@ def translate_and_insert():
         ensure_table_exists(conn_str)
 
         # Connect to the database
-        connection = pyodbc.connect(conn_str)
+        connection = pyodbc.connect(conn_str, pool_pre_ping=True, pool_size=10)
         cursor = connection.cursor()
 
         # Extract the user's IP address
@@ -365,7 +370,12 @@ def ensure_table_exists(conn_str):
         output_language NVARCHAR(50),
         blob_url NVARCHAR(MAX),
         user_ip NVARCHAR(50)
-    )
+    );
+
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_TranslatedDocuments_DetectedLanguage' AND object_id = OBJECT_ID('TranslatedDocuments'))
+    CREATE NONCLUSTERED INDEX IX_TranslatedDocuments_DetectedLanguage ON TranslatedDocuments (detected_language);
+    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_TranslatedDocuments_OutputLanguage' AND object_id = OBJECT_ID('TranslatedDocuments'))
+    CREATE NONCLUSTERED INDEX IX_TranslatedDocuments_OutputLanguage ON TranslatedDocuments (output_language);
     """
     with pyodbc.connect(conn_str) as conn:
         with conn.cursor() as cursor:
