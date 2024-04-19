@@ -18,7 +18,7 @@ from msal import ConfidentialClientApplication
 
 
 from urllib3 import disable_warnings, exceptions
-from system_prompt import system_prompt_instructions
+# from system_prompt import system_prompt_instructions
 # Disable SSL warnings
 disable_warnings(exceptions.InsecureRequestWarning)
 
@@ -96,8 +96,8 @@ if not blob_container_name:
     logger.error("BLOB_CONTAINER_NAME environment variable is not set.")
     raise ValueError("BLOB_CONTAINER_NAME environment variable is not set.")
 
-client_id = os.environ.get('AZURE_AD_CLIENT_ID')
-client_secret = os.environ.get('AZURE_AD_CLIENT_SECRET')
+client_id = os.environ.get('AZURE_Translation_CLIENT_ID')
+client_secret = os.environ.get('AZURE_Translation_CLIENT_SECRET')
 tenant_id = os.environ.get('AZURE_TENANT_ID')
 
 client_app = ConfidentialClientApplication(
@@ -121,7 +121,7 @@ def login():
         # Check if the user is authenticated with Microsoft SSO
         if 'microsoft_token' in session:
             # User is already authenticated, proceed with login logic
-            # ...
+            pass  # Placeholder for the authentication logic
         else:
             # Redirect the user to the Microsoft login page
             return redirect(microsoft_auth_url)
