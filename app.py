@@ -13,8 +13,12 @@ from azure.storage.blob import BlobServiceClient
 import azure.cognitiveservices.speech as speechsdk
 from openai import AzureOpenAI
 
-from urllib3 import disable_warnings, exceptions
+from flask import request, session, redirect
+from msal import ConfidentialClientApplication
 
+
+from urllib3 import disable_warnings, exceptions
+from system_prompt import system_prompt_instructions
 # Disable SSL warnings
 disable_warnings(exceptions.InsecureRequestWarning)
 
@@ -40,6 +44,15 @@ from werkzeug.middleware.profiler import ProfilerMiddleware
 
 app.config['PROFILE'] = True
 app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[30])
+
+
+import pandas as pd
+
+# Load the Excel file to check its structure
+file_path = 'Sherwin Acronyms-b8748681-2405-4e35-8e6a-c65a822a2feb.xlsx'
+data = pd.read_excel(file_path)
+terms_mapping = dict(zip(data['Column1'], data['Column2']))
+
 
 # app.secret_key = 'your_secret_key_here'  # Set a secret key for session management
 
@@ -83,13 +96,57 @@ if not blob_container_name:
     logger.error("BLOB_CONTAINER_NAME environment variable is not set.")
     raise ValueError("BLOB_CONTAINER_NAME environment variable is not set.")
 
+client_id = os.environ.get('AZURE_AD_CLIENT_ID')
+client_secret = os.environ.get('AZURE_AD_CLIENT_SECRET')
+tenant_id = os.environ.get('AZURE_TENANT_ID')
+
+client_app = ConfidentialClientApplication(
+    client_id=client_id,
+    client_credential=client_secret,
+    authority=f"https://login.microsoftonline.com/{tenant_id}"
+)
+
+
+microsoft_auth_url = client_app.get_authorization_request_url(scopes=["user.read"], redirect_uri="http://localhost:5000/auth/microsoft/callback")
+
 # Default page.
 @app.route('/')
 def home():
     logger.info("Serving the home page.")
     return render_template('index.html')
 
-def translate_text(text, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language):
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        # Check if the user is authenticated with Microsoft SSO
+        if 'microsoft_token' in session:
+            # User is already authenticated, proceed with login logic
+            # ...
+        else:
+            # Redirect the user to the Microsoft login page
+            return redirect(microsoft_auth_url)
+    
+    # Render the login page
+    return render_template('login.html')
+
+
+@app.route('/auth/microsoft/callback')
+def microsoft_callback():
+    # Handle the callback from Microsoft SSO
+    auth_code = request.args.get('code')
+    
+    # Exchange the authorization code for an access token
+    token_response = client_app.acquire_token_by_authorization_code(auth_code, scopes=["user.read"])
+    
+    # Store the access token in the session
+    session['microsoft_token'] = token_response['access_token']
+    
+    # Redirect the user back to the login page
+    return redirect('/login')
+
+
+
+def translate_text(text, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language, terms_mapping=None):
     """Detect language and translate text using Azure Translation, handling large texts by splitting them into chunks."""
     logger.info("Starting language detection and text translation.")
     detect_language_path = '/detect'
@@ -100,6 +157,13 @@ def translate_text(text, azure_translation_key, azure_translation_endpoint, azur
     session = requests.Session()
     session.verify = False
 
+    # if terms_mapping:
+    #     # Convert all values in terms_mapping to strings
+    #     terms_mapping = {term: str(placeholder) for term, placeholder in terms_mapping.items()}
+
+    #     for term, placeholder in terms_mapping.items():
+    #         text = text.replace(term, placeholder)
+    
     headers = {
         'Ocp-Apim-Subscription-Key': azure_translation_key,
         'Ocp-Apim-Subscription-Region': azure_translation_location,
@@ -267,6 +331,11 @@ def translate_and_insert():
     # Initialize blob_url to None
     blob_url = None
     
+    # Load the Excel file to check its structure
+    file_path = 'Sherwin Acronyms-b8748681-2405-4e35-8e6a-c65a822a2feb.xlsx'
+    data = pd.read_excel(file_path)
+    terms_mapping = dict(zip(data['Column1'], data['Column2']))
+
     extracted_text = ""
     # Check if text input is provided
     if 'text' in request.form and request.form['text'].strip():
@@ -293,19 +362,30 @@ def translate_and_insert():
     # Ensure blob_url is handled correctly when it's None
     output_language = request.form['language']
 
+
     try:
+        # Preprocess the extracted text by replacing terms with placeholders
+        preprocessed_text = extracted_text
+        for term, placeholder in terms_mapping.items():
+            preprocessed_text = preprocessed_text.replace(str(term), str(placeholder))        
         # Use 'extracted_text' instead of 'input_text'
-        translated_text_a, detected_language = translate_text(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
-        
+        translated_text_a, detected_language = translate_text(
+            text=preprocessed_text,
+            azure_translation_key=azure_translation_key,
+            azure_translation_endpoint=azure_translation_endpoint,
+            azure_translation_location=azure_translation_location,
+            target_language=output_language,
+            terms_mapping=terms_mapping
+        )        
         # Translation using model B
         try:
-            chunks = [extracted_text[i:i+4096] for i in range(0, len(extracted_text), 4096)]
+            chunks = [preprocessed_text[i:i+4096] for i in range(0, len(preprocessed_text), 4096)]
             translated_text_b = ""
             for chunk in chunks:
                 response_b = client_b.chat.completions.create(
                     model="AI-Translation-Test",
                     messages=[
-                        {"role": "system", "content": "Assistant is a large language model trained by OpenAI."},
+                        {"role": "system", "content": "You are a highly skilled multilingual translator with expertise in various technical domains. Your role is to accurately translate text between languages while preserving the meaning, context, and technical jargon specific to the given industry or field."},
                         {"role": "user", "content": f"Translate this to {output_language}: {chunk}"}
                     ]
                 )
@@ -313,6 +393,11 @@ def translate_and_insert():
         except Exception as e:
             logger.error(f"Failed to translate using model B: {e}")
             translated_text_b = "Translation failed"
+
+                # Replace the placeholders back with the original terms in the translated texts from both models
+        for term, placeholder in terms_mapping.items():
+            translated_text_a = translated_text_a.replace(str(placeholder), str(term))
+            translated_text_b = translated_text_b.replace(str(placeholder), str(term))
 
         # Synthesize speech for the translated text
         speech_synthesis_result = speech_synthesizer.speak_text_async(translated_text_a).get()
