@@ -42,13 +42,14 @@
             width: 100%;
         }
 
-        input[type="submit"], .feedback-btn {
-            background-color: #0087F7;
+        input[type="submit"] {
+            background-color: #007BFF;
             color: white;
             cursor: pointer;
+            border: none;
         }
 
-        input[type="submit"]:hover, .feedback-btn:hover {
+        input[type="submit"]:hover {
             background-color: #0056b3;
         }
 
@@ -107,6 +108,11 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        #file.highlight {
+            border-color: #ffcc00;
+            background-color: #fff2e6;
+        }
     </style>
 </head>
 <body>
@@ -119,7 +125,11 @@
             <label for="text">Enter text to translate:</label>
             <textarea id="text" name="text" rows="5" cols="50"></textarea>
             <label for="file">Or upload a file:</label>
-            <input type="file" id="file" name="file">
+            <input type="file" id="file" name="file" style="display: none;">
+            <div id="drop_zone" style="border: 2px dashed #ccc; padding: 10px; text-align: center; cursor: pointer;">
+                Drag and drop a file here or click to select a file
+            </div>
+            <div id="file_name" style="text-align: center; margin-top: 10px;"></div> <!-- This line displays the uploaded file name -->
             <label for="language">Select language:</label>
             <select id="language" name="language">
                 <option value="en">English</option>
@@ -168,7 +178,7 @@
             const formData = new FormData(this);
             document.getElementById('loadingSpinner').style.display = 'block';
             document.getElementById('thinkingMessage').style.display = 'block';
-
+    
             fetch('/translate_and_insert', {
                 method: 'POST',
                 body: formData,
@@ -186,7 +196,7 @@
                 document.getElementById('thinkingMessage').style.display = 'none';
             });
         });
-
+    
         document.getElementById('feedbackForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const feedback = document.getElementById('feedback').value;
@@ -206,6 +216,105 @@
                 console.error('Error:', error);
             });
         });
-    </script>
+    
+        // Drag and drop functionality
+        let dropZone = document.getElementById('drop_zone');
+        dropZone.addEventListener('click', function() {
+            document.getElementById('file').click();
+        });
+    
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropZone.classList.add('highlight');
+        });
+    
+        dropZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('highlight');
+        });
+    
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('highlight');
+            let files = e.dataTransfer.files;
+            document.getElementById('file').files = files;
+            handleFiles(files);
+        });
+    
+        function handleFiles(files) {
+            let formData = new FormData();
+            formData.append('file', files[0]); // Assuming single file upload, adjust if multiple files are allowed
+    
+            // Display the file name
+            document.getElementById('file_name').textContent = 'Uploaded file: ' + files[0].name;
+    
+            fetch('/translate_and_insert', {
+                method: 'POST',
+                body: formData,
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('translated_content_A').textContent = data.translated_text_a;
+                document.getElementById('translated_content_B').textContent = data.translated_text_b;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+        const dropZone = document.getElementById('drop_zone');
+        const fileInput = document.getElementById('file');
+        const fileNameDisplay = document.getElementById('file_name');
+
+        dropZone.addEventListener('click', function() {
+            fileInput.click();
+        });
+
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropZone.classList.add('highlight');
+        });
+
+        dropZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('highlight');
+        });
+
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('highlight');
+            let files = e.dataTransfer.files;
+            fileInput.files = files;
+            handleFiles(files);
+        });
+
+        function handleFiles(files) {
+            if (files.length > 0) {
+                let file = files[0];
+                fileNameDisplay.textContent = 'Uploaded file: ' + file.name; // Display the file name
+
+                let formData = new FormData();
+                formData.append('file', file);
+
+                // Assuming you have an endpoint to handle the file upload
+                fetch('/translate_and_insert', {
+                    method: 'POST',
+                    body: formData,
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Handle response data
+                    console.log('File uploaded and processed');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+            }
+        }
+    });
+
+    </script>    
 </body>
 </html>
+
