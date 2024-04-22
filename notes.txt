@@ -1,0 +1,6 @@
+Simple SQL code has been written to display submitted translation requests in local time instead of UTC.
+
+SELECT *,
+       created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Eastern Standard Time' AS created_at_local
+FROM TranslatedDocuments
+ORDER BY created_at DESC;

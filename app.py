@@ -369,6 +369,7 @@ def ensure_table_exists(conn_str):
         translated_text_b NVARCHAR(MAX),
         output_language NVARCHAR(50),
         blob_url NVARCHAR(MAX),
+        created_at DATETIMEOFFSET NOT NULL DEFAULT (SYSDATETIMEOFFSET()),
         user_ip NVARCHAR(50)
     );
 
@@ -381,6 +382,45 @@ def ensure_table_exists(conn_str):
         with conn.cursor() as cursor:
             cursor.execute(create_table_query)
             conn.commit()
+
+from datetime import datetime
+import pytz
+
+def utc_to_local(utc_dt, local_tz_str):
+    local_tz = pytz.timezone(local_tz_str)
+    return utc_dt.replace(tzinfo=pytz.utc).astimezone(local_tz)
+
+def get_translated_documents():
+    query = """
+    SELECT 
+        input_text, 
+        detected_language, 
+        translated_text_a, 
+        translated_text_b, 
+        output_language, 
+        blob_url, 
+        user_ip,
+        created_at
+    FROM 
+        TranslatedDocuments;
+    """
+    try:
+        with pyodbc.connect(connection_string) as conn:
+            cursor = conn.cursor()
+            cursor.execute(query)
+            results = cursor.fetchall()
+            converted_results = []
+            for result in results:
+                # Convert UTC datetime to local time
+                utc_datetime = result.created_at.replace(tzinfo=pytz.utc)
+                local_datetime = utc_to_local(utc_datetime, 'America/New_York')
+                # Assuming result is a namedtuple or similar, create a new result with the local datetime
+                converted_result = result._replace(created_at=local_datetime)
+                converted_results.append(converted_result)
+            return converted_results
+    except Exception as e:
+        logger.error(f"Failed to retrieve translated documents: {e}")
+        return []
 
 if __name__ == '__main__':
     logger.info("Starting the Flask application...")
