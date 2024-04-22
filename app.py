@@ -62,7 +62,7 @@ speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, au
 # Add a new AzureOpenAI client for model B
 client_b = AzureOpenAI(
   api_key = os.getenv("AZURE_OPENAI_API_KEY"),  
-  api_version = "2024-02-01",
+  api_version = "2024-02-15-preview",
   azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 )
 
@@ -303,7 +303,7 @@ def translate_and_insert():
             translated_text_b = ""
             for chunk in chunks:
                 response_b = client_b.chat.completions.create(
-                    model="AI-Translation-Test",
+                    model="AiTranslationGPT4",
                     messages=[
                         {"role": "system", "content": "Assistant is a large language model trained by OpenAI."},
                         {"role": "user", "content": f"Translate this to {output_language}: {chunk}"}
