@@ -113,6 +113,8 @@
             border-color: #ffcc00;
             background-color: #fff2e6;
         }
+
+        
     </style>
 </head>
 <body>
@@ -161,9 +163,17 @@
             </div>
         </div>
 
-        <!-- Feedback Form -->
+        <!-- Rating Options -->
+        <div id="ratingOptions" class="feedback-options">
+            <button id="rateA" class="feedback-btn">A is better</button>
+            <button id="rateB" class="feedback-btn">B is better</button>
+            <button id="rateTie" class="feedback-btn">Tie</button>
+            <button id="rateBad" class="feedback-btn">Both are bad</button>
+        </div>
+
+        <!-- Feedback Form Section -->
         <form id="feedbackForm">
-            <textarea id="feedback" name="feedback" placeholder="Enter your feedback here..."></textarea>
+            <textarea id="feedback" name="feedback" rows="4" placeholder="Enter your feedback here..."></textarea><br>
             <input type="submit" value="Submit Feedback">
         </form>
 
@@ -315,6 +325,60 @@
                 alert("Error synthesizing speech. Please try again later.");
             });
         }
+
+        document.getElementById('feedbackForm').onsubmit = function(e) {
+            e.preventDefault(); // Prevent default form submission
+            const feedback = document.getElementById('feedback').value;
+            
+            // Show the spinner and the Thinking message
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('thinkingMessage').style.display = 'block';
+            
+            fetch('/submit_feedback', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ feedback: feedback }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('Feedback submitted successfully!');
+                document.getElementById('feedback').value = ''; // Clear the textarea
+                
+                // Hide the spinner and the Thinking message
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('thinkingMessage').style.display = 'none';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                
+                // Hide the spinner and the Thinking message
+                document.getElementById('loadingSpinner').style.display = 'none';
+                document.getElementById('thinkingMessage').style.display = 'none';
+            });
+        };
+
+        document.querySelectorAll('#ratingOptions .feedback-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const action = this.textContent;
+                fetch('/update_ratings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ action: action }),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert('Ratings updated successfully!');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to update ratings.');
+                });
+            });
+        });
     </script>    
 </body>
 </html>

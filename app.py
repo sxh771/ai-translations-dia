@@ -247,8 +247,18 @@ def update_ratings():
     data = request.get_json()
     action = data['action']
     
+    conn_str = (
+        f"DRIVER={{{driver}}};"
+        f"SERVER={server};"
+        f"DATABASE={database};"
+        f"UID={username};"
+        f"PWD={password};"
+        "TrustServerCertificate=yes;"
+        "Connection Timeout=30;"
+    )
+    
     try:
-        with pyodbc.connect(connection_string) as conn:
+        with pyodbc.connect(conn_str) as conn:
             with conn.cursor() as cursor:
                 if action == "A is better":
                     cursor.execute("UPDATE ModelRatings SET ratingA = ratingA + 1 WHERE id = 1")
