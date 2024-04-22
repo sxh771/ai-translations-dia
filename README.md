@@ -1,53 +1,83 @@
-revised_markdown_content = """
-# Proof of Concept for AI-Powered Translation
 
-## Project Overview
+# Project Title: Proof of Concept for AI-Powered Translation
 
-This repository hosts the code for a "Proof of Concept for AI-Powered Translation". The application showcases the capabilities of modern AI technologies in language detection, translation, and speech synthesis using Azure Cognitive Services. This proof of concept is designed to demonstrate the potential for implementing these technologies in real-world applications, highlighting their efficiency and accuracy.
+## Introduction
 
-## Description
+This repository hosts a Flask-based web application designed to demonstrate AI-powered translation capabilities, including language detection, text translation, and speech synthesis using Microsoft Azure Cognitive Services. This proof of concept illustrates the application of these technologies in real-world scenarios, making it a valuable tool for developers interested in multilingual applications.
 
-This application is a robust Flask-based web service designed for advanced language processing tasks. It utilizes a range of Azure Cognitive Services for functionalities such as language detection, text translation, and speech synthesis. Additionally, it integrates with Azure Blob Storage for document management and extracts text from PDF and DOCX files using PyMuPDF and `docx2txt`.
+## Features
 
-## Key Features
+- **Language Detection and Translation**: Uses Azure Translation to detect and translate text.
+- **Speech Synthesis**: Implements Azure Speech SDK to generate audio from text.
+- **Document Handling**: Supports uploading and processing of PDF and DOCX files for text extraction.
+- **Azure Blob Storage**: Manages file storage securely and efficiently.
+- **Logging**: Provides detailed logs for monitoring and debugging purposes.
 
-- **Language Detection and Translation**: Leverages Azure Translation to automatically detect the language of the provided text and translates it to a specified target language with high accuracy.
-- **Speech Synthesis**: Uses Azure Speech SDK to convert text to natural-sounding speech, supporting multiple languages and dialects with various voice options.
-- **File Handling**: Capable of handling file uploads securely, extracting text from different document formats, and saving synthesized audio files locally.
-- **Logging and Error Handling**: Implements a sophisticated logging system that tracks operations, system status, and errors. The logs are managed through a rotating file system that ensures log files are kept under control in size and number.
-- **Session and Request Management**: Incorporates session management for state persistence across requests and employs Flask middleware for performance profiling and error handling.
+## Getting Started
 
-## Configuration and Setup
+### Prerequisites
 
-1. **Dependencies**: Install all the necessary libraries and packages listed in the `requirements.txt` file to ensure the application functions correctly.
-   
-2. **Environment Variables**:
-   - Translation and speech services keys and endpoints such as `AZURE_TRANSLATION_KEY`, `AZURE_SPEECH_KEY`, and their respective regions and endpoints.
-   - Database credentials like `DB_SERVER` and `DB_USERNAME` to connect to the SQL database.
-   - Azure Blob Storage configuration including `BLOB_CONNECTION_STRING` and `BLOB_CONTAINER_NAME`.
+Ensure you have the following installed:
+- Python 3.8 or newer
+- Flask web framework
+- All necessary libraries and packages listed in `requirements.txt`
 
-3. **Database Setup**: Execute the SQL commands provided in the script to configure the necessary tables and indexes in your SQL database, ensuring data integrity and optimized access.
+### Installation
 
-4. **Logging**: Configure the path and settings for the `app.log` file to capture detailed logs. Adjust the logging level as necessary for different environments.
+1. **Clone the Repository**:
+   ```
+   https://github.com/sohail-hosseini/ai-translations.git
+   cd ai-translations.git
+   ```
 
-5. **Running the Application**: Execute the application using the Flask built-in server for development by running `flask run`. For production environments, consider using a more robust WSGI server like Gunicorn.
+2. **Install Dependencies**:
+   ```
+   pip install -r requirements.txt
+   ```
 
-## Endpoints
+### Environment Variables
 
-Detailed API endpoint descriptions providing information on request types, expected parameters, and the structure of responses.
+The application requires the configuration of several environment variables to function properly:
 
-## Security and Performance
+- **`AZURE_TRANSLATION_KEY`**: API key for accessing Microsoft Azure Translation Services.
+- **`AZURE_SPEECH_KEY`**: API key for utilizing Microsoft Azure Speech Services.
+- **`DB_SERVER`**: Hostname or IP address of the SQL database server.
+- **`DB_USERNAME`**: Username for SQL database access.
+- **`DB_PASSWORD`**: Password for SQL database access.
+- **`BLOB_CONNECTION_STRING`**: Connection string for Azure Blob Storage, used for managing file uploads.
 
-- **SSL/TLS Configuration**: Guides on setting up SSL/TLS to ensure secure data transmission.
-- **Profiler Middleware**: Details on how profiling is set up and how it can be used to diagnose performance bottlenecks.
+These variables should be set in your system's environment or stored in a `.env` file for local development. Ensure they are secured and not exposed in the code or public repositories.
 
-## Troubleshooting
+### Database Setup
 
-Expanded troubleshooting section covering common issues related to environment setup, database connections, and service integrations.
+Execute the provided SQL script to configure the necessary tables and indexes in your SQL database. This setup is crucial for storing and retrieving data efficiently.
+
+### Running the Application
+
+To launch the application, run:
+```
+python app.py
+```
+This command starts the Flask server. Access the application by navigating to `http://localhost:5000/` in your web browser.
+
+## Usage
+
+### Endpoints
+
+- **Homepage (`GET /`)**: Displays the application's homepage.
+- **Synthesize Speech (`POST /synthesize_speech`)**: Takes JSON input with text and language, returns the path to the generated speech audio file.
+- **Update Ratings (`POST /update_ratings`)**: Handles user feedback on translation models.
+- **Fetch Audio File (`GET /audio/<filename>`)**: Retrieves a specific audio file.
+- **Translate and Insert (`POST /translate_and_insert`)**: Translates provided text or document content and stores the results in the database.
+
+### Example Request
+
+Example of how to use the `/synthesize_speech` endpoint with `curl`:
+```
+curl -X POST -H "Content-Type: application/json" -d '{"text":"Hello, world!", "language":"en-US"}' http://localhost:5000/synthesize_speech
+```
 
 ## Contributing
 
-- Detailed guidelines for contributors covering coding conventions, branching strategies, and pull request procedures.
-- Information on setting up a development environment, running tests, and guidelines for code reviews.
-
+We welcome contributions from the community. Please open an issue to discuss significant changes before making a pull request. Make sure to update or add tests as necessary.
 
