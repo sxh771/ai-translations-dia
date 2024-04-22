@@ -1,72 +1,53 @@
-# HTML Translator Service
+revised_markdown_content = """
+# Proof of Concept for AI-Powered Translation
 
-Welcome to the HTML Translator Service, a Flask-based application designed to streamline the process of translating HTML content from Finnish to English. Leveraging the power of Azure's Translation service, this tool is perfect for developers and content creators looking to efficiently localize web content for diverse audiences.
+## Project Overview
 
-## Features
+This repository hosts the code for a "Proof of Concept for AI-Powered Translation". The application showcases the capabilities of modern AI technologies in language detection, translation, and speech synthesis using Azure Cognitive Services. This proof of concept is designed to demonstrate the potential for implementing these technologies in real-world applications, highlighting their efficiency and accuracy.
 
-- **HTML Content Translation**: Seamlessly translates Finnish text within HTML files to English, ensuring your web content is accessible to a wider audience.
-- **Azure Translation Integration**: Utilizes Azure's Translation service for high-quality, reliable translations.
-- **Smart Content Filtering**: Excludes non-translatable elements (e.g., script, style, head, title, meta, and document tags) to focus on translating meaningful content.
+## Description
 
-## Getting Started
+This application is a robust Flask-based web service designed for advanced language processing tasks. It utilizes a range of Azure Cognitive Services for functionalities such as language detection, text translation, and speech synthesis. Additionally, it integrates with Azure Blob Storage for document management and extracts text from PDF and DOCX files using PyMuPDF and `docx2txt`.
 
-### Prerequisites
+## Key Features
 
-Ensure you have the following installed:
+- **Language Detection and Translation**: Leverages Azure Translation to automatically detect the language of the provided text and translates it to a specified target language with high accuracy.
+- **Speech Synthesis**: Uses Azure Speech SDK to convert text to natural-sounding speech, supporting multiple languages and dialects with various voice options.
+- **File Handling**: Capable of handling file uploads securely, extracting text from different document formats, and saving synthesized audio files locally.
+- **Logging and Error Handling**: Implements a sophisticated logging system that tracks operations, system status, and errors. The logs are managed through a rotating file system that ensures log files are kept under control in size and number.
+- **Session and Request Management**: Incorporates session management for state persistence across requests and employs Flask middleware for performance profiling and error handling.
 
-- Python 3.x
-- Flask
-- BeautifulSoup4
-- Requests
+## Configuration and Setup
 
-Install all dependencies with:
+1. **Dependencies**: Install all the necessary libraries and packages listed in the `requirements.txt` file to ensure the application functions correctly.
+   
+2. **Environment Variables**:
+   - Translation and speech services keys and endpoints such as `AZURE_TRANSLATION_KEY`, `AZURE_SPEECH_KEY`, and their respective regions and endpoints.
+   - Database credentials like `DB_SERVER` and `DB_USERNAME` to connect to the SQL database.
+   - Azure Blob Storage configuration including `BLOB_CONNECTION_STRING` and `BLOB_CONTAINER_NAME`.
 
-```bash
-pip install -r requirements.txt
-```
+3. **Database Setup**: Execute the SQL commands provided in the script to configure the necessary tables and indexes in your SQL database, ensuring data integrity and optimized access.
 
-### Configuration
+4. **Logging**: Configure the path and settings for the `app.log` file to capture detailed logs. Adjust the logging level as necessary for different environments.
 
-Set up your Azure Translation service credentials by defining the following environment variables:
+5. **Running the Application**: Execute the application using the Flask built-in server for development by running `flask run`. For production environments, consider using a more robust WSGI server like Gunicorn.
 
-- `AZURE_TRANSLATION_KEY`: Your Azure Translation subscription key.
-- `AZURE_TRANSLATION_ENDPOINT`: The endpoint URL of your Azure Translation service.
-- `AZURE_TRANSLATION_LOCATION`: The location/region of your Azure Translation service.
+## Endpoints
 
-### Running the Application
+Detailed API endpoint descriptions providing information on request types, expected parameters, and the structure of responses.
 
-Launch the Flask application using:
+## Security and Performance
 
-```bash
-python app.py
-```
+- **SSL/TLS Configuration**: Guides on setting up SSL/TLS to ensure secure data transmission.
+- **Profiler Middleware**: Details on how profiling is set up and how it can be used to diagnose performance bottlenecks.
 
-The service will be accessible at `http://localhost:5000`.
+## Troubleshooting
 
-## Usage
-
-To translate an HTML file, send a POST request to `http://localhost:5000/translate` with the HTML file as form-data. Use the key `file` for the file data.
-
-Example using `curl`:
-
-```bash
-curl -X POST -F "file=@path/to/your/file.html" http://localhost:5000/translate
-```
-
-The response will be a JSON object containing the translated HTML content.
+Expanded troubleshooting section covering common issues related to environment setup, database connections, and service integrations.
 
 ## Contributing
 
-Contributions are welcome! Fork the repository, make your changes, and submit a pull request to help improve the application.
+- Detailed guidelines for contributors covering coding conventions, branching strategies, and pull request procedures.
+- Information on setting up a development environment, running tests, and guidelines for code reviews.
 
-## Deployment
 
-This application is deployable to Azure Web Apps, with a GitHub Actions workflow (`main_ai-translations.yml`) configured for CI/CD. This automates the build and deployment process, making it easy to get your translation service up and running in the cloud.
-
-## Feedback and Ratings
-
-The application supports submitting feedback and updating model ratings through the `/submit_feedback` and `/update_ratings` endpoints. This allows for user engagement and helps in refining the service based on user feedback.
-
-For implementation details, refer to the `app.py` file.
-
-Thank you for choosing the HTML Translator Service for your localization needs!
