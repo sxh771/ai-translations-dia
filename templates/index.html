@@ -124,6 +124,7 @@
         <form id="translation_form" enctype="multipart/form-data">
             <label for="text">Enter text to translate:</label>
             <textarea id="text" name="text" rows="5" cols="50"></textarea>
+            <i id="input_text_speaker" class="fa fa-volume-up" aria-hidden="true" onclick="playAudio('input_text')"></i>
             <label for="file">Or upload a file:</label>
             <input type="file" id="file" name="file" style="display: none;">
             <div id="drop_zone" style="border: 2px dashed #ccc; padding: 10px; text-align: center; cursor: pointer;">
@@ -149,12 +150,14 @@
                 <div id="translated_content_A" class="translated-text-box" readonly>
                     <!-- Translated text by Model A will be dynamically inserted here -->
                 </div>
+                <i id="translated_speaker_A" class="fa fa-volume-up" aria-hidden="true" onclick="playAudio('translated_A')"></i>
             </div>
             <div class="translation-column">
                 <h3>Translated by Model B</h3>
                 <div id="translated_content_B" class="translated-text-box" readonly>
                     <!-- Translated text by Model B will be dynamically inserted here -->
                 </div>
+                <i id="translated_speaker_B" class="fa fa-volume-up" aria-hidden="true" onclick="playAudio('translated_B')"></i>
             </div>
         </div>
 
@@ -172,13 +175,14 @@
     </div>
 
     <script>
-        // JavaScript for handling form submission, file drag-and-drop, and audio playback
+        let isCooldown = false;
+
         document.getElementById('translation_form').addEventListener('submit', function(e) {
             e.preventDefault();
             const formData = new FormData(this);
             document.getElementById('loadingSpinner').style.display = 'block';
             document.getElementById('thinkingMessage').style.display = 'block';
-    
+
             fetch('/translate_and_insert', {
                 method: 'POST',
                 body: formData,
@@ -196,7 +200,7 @@
                 document.getElementById('thinkingMessage').style.display = 'none';
             });
         });
-    
+
         document.getElementById('feedbackForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const feedback = document.getElementById('feedback').value;
@@ -216,23 +220,22 @@
                 console.error('Error:', error);
             });
         });
-    
-        // Drag and drop functionality
+
         let dropZone = document.getElementById('drop_zone');
         dropZone.addEventListener('click', function() {
             document.getElementById('file').click();
         });
-    
+
         dropZone.addEventListener('dragover', function(e) {
             e.preventDefault();
             dropZone.classList.add('highlight');
         });
-    
+
         dropZone.addEventListener('dragleave', function(e) {
             e.preventDefault();
             dropZone.classList.remove('highlight');
         });
-    
+
         dropZone.addEventListener('drop', function(e) {
             e.preventDefault();
             dropZone.classList.remove('highlight');
@@ -240,14 +243,13 @@
             document.getElementById('file').files = files;
             handleFiles(files);
         });
-    
+
         function handleFiles(files) {
             let formData = new FormData();
             formData.append('file', files[0]); // Assuming single file upload, adjust if multiple files are allowed
-    
-            // Display the file name
+
             document.getElementById('file_name').textContent = 'Uploaded file: ' + files[0].name;
-    
+
             fetch('/translate_and_insert', {
                 method: 'POST',
                 body: formData,
@@ -262,59 +264,57 @@
             });
         }
 
-        document.addEventListener('DOMContentLoaded', function() {
-        const dropZone = document.getElementById('drop_zone');
-        const fileInput = document.getElementById('file');
-        const fileNameDisplay = document.getElementById('file_name');
+        function playAudio(type) {
+            if (isCooldown) {
+                alert("Please wait a moment before requesting speech again.");
+                return;
+            }
 
-        dropZone.addEventListener('click', function() {
-            fileInput.click();
-        });
+            let text, language = 'en'; // Assuming the language of the translated text is English
 
-        dropZone.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            dropZone.classList.add('highlight');
-        });
+            if (type === 'translated_A') {
+                text = document.getElementById('translated_content_A').innerText;
+            } else if (type === 'translated_B') {
+                text = document.getElementById('translated_content_B').innerText;
+            } else if (type === 'input_text') {
+                text = document.getElementById('text').value; // Use the text area for translation input
+            }
 
-        dropZone.addEventListener('dragleave', function(e) {
-            e.preventDefault();
-            dropZone.classList.remove('highlight');
-        });
-
-        dropZone.addEventListener('drop', function(e) {
-            e.preventDefault();
-            dropZone.classList.remove('highlight');
-            let files = e.dataTransfer.files;
-            fileInput.files = files;
-            handleFiles(files);
-        });
-
-        function handleFiles(files) {
-            if (files.length > 0) {
-                let file = files[0];
-                fileNameDisplay.textContent = 'Uploaded file: ' + file.name; // Display the file name
-
-                let formData = new FormData();
-                formData.append('file', file);
-
-                // Assuming you have an endpoint to handle the file upload
-                fetch('/translate_and_insert', {
-                    method: 'POST',
-                    body: formData,
-                })
-                .then(response => response.json())
-                .then(data => {
-                    // Handle response data
-                    console.log('File uploaded and processed');
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                });
+            if (text) {
+                isCooldown = true;
+                synthesizeSpeech(text, language, type);
+                setTimeout(() => { isCooldown = false; }, 10000); // Cooldown period of 10 seconds
             }
         }
-    });
 
+        function synthesizeSpeech(text, language, type) {
+            fetch('/synthesize_speech', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text: text, language: language }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                const audioUrl = `/audio/${data.filename}`;
+                const audio = new Audio(audioUrl);
+                audio.play().catch(e => console.error("Error playing the audio:", e));
+                audio.onended = function() {
+                    if (type === 'translated_A') {
+                        // Handle end of audio for Model A
+                    } else if (type === 'translated_B') {
+                        // Handle end of audio for Model B
+                    } else if (type === 'input_text') {
+                        // Handle end of audio for input text
+                    }
+                };
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("Error synthesizing speech. Please try again later.");
+            });
+        }
     </script>    
 </body>
 </html>
-

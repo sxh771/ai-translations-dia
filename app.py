@@ -36,12 +36,7 @@ logger.addHandler(file_handler)
 
 app = Flask(__name__)
 
-from werkzeug.middleware.profiler import ProfilerMiddleware
-
-app.config['PROFILE'] = True
-app.wsgi_app = ProfilerMiddleware(app.wsgi_app, restrictions=[30])
-
-# app.secret_key = 'your_secret_key_here'  # Set a secret key for session management
+app.secret_key = 'your_secret_key_here'  # Set a secret key for session management
 
 # environment = os.environ.get("ENVIRONMENT")
 
