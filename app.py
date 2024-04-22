@@ -66,6 +66,20 @@ client_b = AzureOpenAI(
   azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
 )
 
+# Enable connection pooling
+pyodbc.pooling = True
+
+# Define a global connection string
+connection_string = (
+    f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+    f"SERVER={os.environ.get('DB_SERVER')};"
+    f"DATABASE={os.environ.get('DB_NAME')};"
+    f"UID={os.environ.get('DB_USERNAME')};"
+    f"PWD={os.environ.get('DB_PASSWORD')};"
+    "TrustServerCertificate=yes;"
+    "Connection Timeout=30;"
+)
+
 # Connection details from the Azure SQL Database
 driver = 'ODBC Driver 18 for SQL Server'
 server = os.environ.get("DB_SERVER")
@@ -239,7 +253,7 @@ def update_ratings():
     action = data['action']
     
     try:
-        with pyodbc.connect(conn_str) as conn:
+        with pyodbc.connect(connection_string) as conn:
             with conn.cursor() as cursor:
                 if action == "A is better":
                     cursor.execute("UPDATE ModelRatings SET ratingA = ratingA + 1 WHERE id = 1")
@@ -319,22 +333,8 @@ def translate_and_insert():
         if speech_synthesis_result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
             logger.error("Failed to synthesize speech for the translated text.")
 
-        # Define your connection string (adjusted for your application's needs)
-        conn_str = (
-            f"DRIVER={{{driver}}};"
-            f"SERVER={server};"
-            f"DATABASE={database};"
-            f"UID={username};"
-            f"PWD={password};"
-            "TrustServerCertificate=yes;"
-            "Connection Timeout=1500;"
-        )
-
-        # Ensure the table exists before inserting data
-        ensure_table_exists(conn_str)
-
         # Connect to the database
-        connection = pyodbc.connect(conn_str, pool_pre_ping=True, pool_size=10)
+        connection = pyodbc.connect(connection_string)
         cursor = connection.cursor()
 
         # Extract the user's IP address
