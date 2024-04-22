@@ -1,3 +1,5 @@
+from flask import request, session, redirect
+from msal import ConfidentialClientApplication
 import logging
 from logging.handlers import RotatingFileHandler
 from flask import Flask, request, jsonify, render_template, make_response, send_from_directory, abort, session
@@ -12,9 +14,6 @@ import docx2txt
 from azure.storage.blob import BlobServiceClient
 import azure.cognitiveservices.speech as speechsdk
 from openai import AzureOpenAI
-
-from flask import request, session, redirect
-from msal import ConfidentialClientApplication
 
 
 from urllib3 import disable_warnings, exceptions
