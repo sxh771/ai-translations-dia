@@ -11,7 +11,10 @@ test.py
 # to collect thoughts
 feedback.txt
 
+# *.csv
+
 .DS_Store
+
 test*.*
 *.pptx
 *.pdf 

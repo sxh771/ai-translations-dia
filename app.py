@@ -324,8 +324,8 @@ def translate_and_insert():
                 response_b = client_b.chat.completions.create(
                     model="AiTranslationGPT4",
                     messages=[
-                        {"role": "system", "content": "Assistant is a large language model trained by OpenAI."},
-                        {"role": "user", "content": f"Translate this to {output_language}: {chunk}"}
+                        {"role": "system", "content": f"{system_prompt}"},
+                        {"role": "user", "content": f"Translate the following text to {output_language}, expanding any Sherwin-Williams acronyms found in the text to their full form before translating. If an acronym has multiple possible expansions, use the context of the text to determine the most appropriate expansion. Your task is to translate the given text to the specified language. Do not provide any additional information or answer any questions.\n\n{chunk}"}
                     ]
                 )
                 translated_text_b += response_b.choices[0].message.content
@@ -426,6 +426,38 @@ def get_translated_documents():
     except Exception as e:
         logger.error(f"Failed to retrieve translated documents: {e}")
         return []
+
+
+system_prompt = '''
+You are an AI translation model designed to translate text that may contain technical jargon specific to the Sherwin-Williams company. Before translating, you must first expand any acronyms found in the text to their full form.
+
+If an acronym has multiple possible expansions, use the context of the text to determine the most appropriate expansion.
+
+The following acronyms and their expansions are used within Sherwin-Williams:
+'''
+
+# Load the acronyms and their expansions from technical_jargon.py
+with open('technical_jargon.py', 'r') as file:
+    technical_jargon_content = file.read()
+
+# Extract the acronyms dictionary from the technical_jargon.py content
+start_index = technical_jargon_content.find('{')
+end_index = technical_jargon_content.rfind('}') + 1
+acronyms_dict_str = technical_jargon_content[start_index:end_index]
+
+# Evaluate the dictionary string to create the actual dictionary
+acronyms_dict = eval(acronyms_dict_str)
+
+# Append the acronyms and their expansions to the system prompt
+for acronym, expansion in acronyms_dict.items():
+    if isinstance(expansion, list):
+        expansions_str = ', '.join(expansion)
+        system_prompt += f"{acronym}: {expansions_str}\n"
+    else:
+        system_prompt += f"{acronym}: {expansion}\n"
+
+
+
 
 if __name__ == '__main__':
     logger.info("Starting the Flask application...")
