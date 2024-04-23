@@ -321,17 +321,37 @@ def translate_and_insert():
             chunks = [extracted_text[i:i+4096] for i in range(0, len(extracted_text), 4096)]
             translated_text_b = ""
             for chunk in chunks:
-                response_b = client_b.chat.completions.create(
-                    model="AiTranslationGPT4",
-                    messages=[
-                        {"role": "system", "content": f"{system_prompt}"},
-                        {"role": "user", "content": f"Translate the following text to {output_language}, expanding any acronyms found in the text to their full form before translating. If an acronym has multiple possible expansions, use the context of the text to determine the most appropriate expansion. Your task is to translate the given text to the specified language. Do not provide any additional information or answer any questions.\n\n{chunk}"}
-                    ]
-                )
-                translated_text_b += response_b.choices[0].message.content
+                # Expand acronyms if present
+                words = chunk.split()
+                expanded_words = []
+                for word in words:
+                    if word.upper() in acronyms_dict:
+                        # Replace acronym with its full form
+                        expanded_word = acronyms_dict[word.upper()]
+                        expanded_words.append(expanded_word)
+                    else:
+                        expanded_words.append(word)
+                expanded_text = " ".join(expanded_words)
+
+                # Check if translation is needed
+                if not output_language or output_language.lower() == "english":
+                    translated_text_b += expanded_text
+                else:
+                    response_b = client_b.chat.completions.create(
+                        model="AiTranslationGPT4",
+                        messages=[
+                            {"role": "system", "content": system_prompt + "Please translate the following text directly to the specified language. Do not provide any explanations or engage in dialogue."},
+                            {"role": "user", "content": f"Translate this text to {output_language}: {expanded_text}"}
+                        ]
+                    )
+                    translated_text_b += response_b.choices[0].message.content
         except Exception as e:
             logger.error(f"Failed to translate using model B: {e}")
             translated_text_b = "Translation failed"
+
+
+
+
 
         # Synthesize speech for the translated text
         speech_synthesis_result = speech_synthesizer.speak_text_async(translated_text_a).get()
