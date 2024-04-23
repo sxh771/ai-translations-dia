@@ -199,7 +199,7 @@ if not os.path.exists(audio_files_directory):
 
 # Global variable to track the last synthesis time
 last_speech_synthesis_time = None
-minimum_interval_seconds = 5  # Minimum allowed interval between syntheses
+minimum_interval_seconds = 1  # Minimum allowed interval between syntheses
 
 @app.route('/synthesize_speech', methods=['POST'])
 def synthesize_speech():
