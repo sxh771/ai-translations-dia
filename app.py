@@ -281,20 +281,19 @@ def get_audio(filename):
         abort(404)  # Return a 404 if the file does not exist
     return send_from_directory(audio_files_directory, filename, mimetype='audio/mpeg')
 
+import threading
 @app.route('/translate_and_insert', methods=['POST'])
 def translate_and_insert():
-    # Initialize blob_url to None
     blob_url = None
     
     extracted_text = ""
-    # Check if text input is provided
     if 'text' in request.form and request.form['text'].strip():
         extracted_text = request.form['text'].strip()
         # Synthesize speech for the input text
         speech_synthesis_result = speech_synthesizer.speak_text_async(extracted_text).get()
         if speech_synthesis_result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
             logger.error("Failed to synthesize speech for the input text.")
-    # Check if a file is uploaded; this will override text input if both are provided
+    
     if 'file' in request.files and request.files['file']:
         file = request.files['file']
         if file.filename.endswith('.pdf'):
@@ -305,157 +304,84 @@ def translate_and_insert():
             extracted_text = file.stream.read().decode('utf-8')
         else:
             return jsonify({"error": "Unsupported file type"}), 400
-        # Upload the file to Azure Blob Storage and get the blob URL
         blob_url = upload_file_to_blob(file.stream, file.filename)
 
-    # Proceed with translation and database insertion as before
-    # Ensure blob_url is handled correctly when it's None
     output_language = request.form['language']
+    translated_text_a, detected_language = translate_text(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
+    translated_text_b = translate_using_model_b(extracted_text, output_language)
 
+    # Return translated text immediately to the user
+    response = jsonify({
+        "message": "Translation successful",
+        "translated_text_a": translated_text_a,
+        "translated_text_b": translated_text_b,
+        "detected_language": detected_language,
+        "output_language": output_language
+    }), 200
+
+    # Extract the user's IP address
+    user_ip = request.remote_addr
+
+    # Use threading to handle database insertion asynchronously
+    threading.Thread(target=insert_translation_to_db, args=(extracted_text, detected_language, translated_text_a, translated_text_b, output_language, blob_url, user_ip)).start()
+
+    return response
+
+def translate_using_model_b(extracted_text, output_language):
     try:
-        # Use 'extracted_text' instead of 'input_text'
-        translated_text_a, detected_language = translate_text(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
-        
-        # Translation using model B
-        try:
-            chunks = [extracted_text[i:i+4096] for i in range(0, len(extracted_text), 4096)]
-            translated_text_b = ""
-            for chunk in chunks:
-                # Check if translation is needed
-                if not output_language or output_language.lower() == "english":
-                    # If the output language is English or not specified, check for technical jargon
-                    words = chunk.split()
-                    expanded_words = []
-                    for word in words:
-                        if word.upper() in acronyms_dict:
-                            # Replace acronym with its full form
-                            expanded_word = acronyms_dict[word.upper()]
-                            if isinstance(expanded_word, list):
-                                # If multiple expansions, choose the first one
-                                expanded_word = expanded_word[0]
-                            
-                            # Check if the sentence with the replaced technical jargon still has meaning
-                            replaced_chunk = chunk.replace(word, expanded_word)
-                            response_check = client_b.chat.completions.create(
-                                model="AiTranslationGPT4",
-                                messages=[
-                                    {"role": "system", "content": "You are an AI language model. Your task is to determine if the given sentence still has meaning after replacing a specific term."},
-                                    {"role": "user", "content": f"Does this sentence still make sense after replacing '{word}' with '{expanded_word}'?\n\nOriginal: {chunk}\n\nModified: {replaced_chunk}"}
-                                ]
-                            )
-                            if "yes" in response_check.choices[0].message.content.lower():
-                                expanded_words.append(expanded_word)
-                            else:
-                                expanded_words.append(word)
-                        else:
-                            expanded_words.append(word)
-                    expanded_text = " ".join(expanded_words)
-                    translated_text_b += expanded_text
-                else:
-                    # Expand acronyms if present
-                    words = chunk.split()
-                    expanded_words = []
-                    for word in words:
-                        if word.upper() in acronyms_dict:
-                            # Replace acronym with its full form
-                            expanded_word = acronyms_dict[word.upper()]
-                            if isinstance(expanded_word, list):
-                                # If multiple expansions, choose the first one
-                                expanded_word = expanded_word[0]
-                            
-                            # Check if the sentence with the replaced technical jargon still has meaning
-                            replaced_chunk = chunk.replace(word, expanded_word)
-                            response_check = client_b.chat.completions.create(
-                                model="AiTranslationGPT4",
-                                messages=[
-                                    {"role": "system", "content": "You are an AI language model. Your task is to determine if the given sentence still has meaning after replacing a specific term."},
-                                    {"role": "user", "content": f"Does this sentence still make sense after replacing '{word}' with '{expanded_word}'?\n\nOriginal: {chunk}\n\nModified: {replaced_chunk}"}
-                                ]
-                            )
-                            if "yes" in response_check.choices[0].message.content.lower():
-                                expanded_words.append(expanded_word)
-                            else:
-                                expanded_words.append(word)
-                        else:
-                            expanded_words.append(word)
-                    expanded_text = " ".join(expanded_words)
+        chunks = [extracted_text[i:i+4096] for i in range(0, len(extracted_text), 4096)]
+        translated_text_b = ""
+        for chunk in chunks:
+            expanded_text = expand_acronyms(chunk)
+            if output_language.lower() != "english":
+                response_b = client_b.chat.completions.create(
+                    model="AiTranslationGPT4",
+                    messages=[
+                        {"role": "system", "content": "You are an AI translation model. Your task is to translate the given text to the specified language. Provide only the translated text without any explanations, modifications, or additional dialogue."},
+                        {"role": "user", "content": f"Translate this text to {output_language}: {expanded_text}"}
+                    ]
+                )
+                translated_text_b += response_b.choices[0].message.content.strip()
+            else:
+                translated_text_b += expanded_text
+        return translated_text_b
+    except Exception as e:
+        logger.error(f"Failed to translate using model B: {e}")
+        return "Translation failed"
 
-                    response_b = client_b.chat.completions.create(
-                        model="AiTranslationGPT4",
-                        messages=[
-                            {"role": "system", "content": "You are an AI translation model. Your task is to translate the given text to the specified language. Provide only the translated text without any explanations, modifications, or additional dialogue."},
-                            {"role": "user", "content": f"Translate this text to {output_language}: {expanded_text}"}
-                        ]
-                    )
-                    translated_text_b += response_b.choices[0].message.content.strip()
-        except Exception as e:
-            logger.error(f"Failed to translate using model B: {e}")
-            translated_text_b = "Translation failed"
+def expand_acronyms(text):
+    words = text.split()
+    expanded_words = []
+    for word in words:
+        if word.upper() in acronyms_dict:
+            expanded_word = acronyms_dict[word.upper()][0] if isinstance(acronyms_dict[word.upper()], list) else acronyms_dict[word.upper()]
+            replaced_chunk = text.replace(word, expanded_word)
+            response_check = client_b.chat.completions.create(
+                model="AiTranslationGPT4",
+                messages=[
+                    {"role": "system", "content": "You are an AI language model. Your task is to determine if the given sentence still has meaning after replacing a specific term."},
+                    {"role": "user", "content": f"Does this sentence still make sense after replacing '{word}' with '{expanded_word}'?\n\nOriginal: {text}\n\nModified: {replaced_chunk}"}
+                ]
+            )
+            if "yes" in response_check.choices[0].message.content.lower():
+                expanded_words.append(expanded_word)
+            else:
+                expanded_words.append(word)
+        else:
+            expanded_words.append(word)
+    return " ".join(expanded_words)
 
-
-
-
-
-
-
-
-
-
-
-        # Synthesize speech for the translated text
-        speech_synthesis_result = speech_synthesizer.speak_text_async(translated_text_a).get()
-        if speech_synthesis_result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
-            logger.error("Failed to synthesize speech for the translated text.")
-
-        # Connect to the database
+def insert_translation_to_db(extracted_text, detected_language, translated_text_a, translated_text_b, output_language, blob_url, user_ip):
+    try:
         connection = pyodbc.connect(connection_string)
         cursor = connection.cursor()
-
-        # Extract the user's IP address
-        user_ip = request.remote_addr
-
-        # Update your insert query to include the user_ip
         insert_query = """INSERT INTO TranslatedDocuments (input_text, detected_language, translated_text_a, translated_text_b, output_language, blob_url, user_ip) VALUES (?, ?, ?, ?, ?, ?, ?)"""
-
-        # Include 'user_ip' in the cursor.execute call
         cursor.execute(insert_query, (extracted_text, detected_language, translated_text_a, translated_text_b, output_language, blob_url if blob_url else "", user_ip))
         connection.commit()
-
-        return jsonify({
-            "message": "Data inserted successfully",
-            "translated_text_a": translated_text_a,
-            "translated_text_b": translated_text_b,
-            "detected_language": detected_language,
-            "output_language": output_language
-        }), 200
-
     except Exception as e:
-        logger.error(f"Failed to translate and insert data: {e}")
-        return jsonify({"error": "Failed to translate and insert data"}), 500
-
-def ensure_table_exists(conn_str):
-    create_table_query = """
-    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'TranslatedDocuments')
-    CREATE TABLE TranslatedDocuments (
-        input_text NVARCHAR(MAX),
-        detected_language NVARCHAR(50),
-        translated_text_a NVARCHAR(MAX),
-        translated_text_b NVARCHAR(MAX),
-        output_language NVARCHAR(50),
-        blob_url NVARCHAR(MAX),
-        created_at DATETIMEOFFSET NOT NULL DEFAULT (SYSDATETIMEOFFSET()),
-        user_ip NVARCHAR(50)
-    );
-
-    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_TranslatedDocuments_DetectedLanguage' AND object_id = OBJECT_ID('TranslatedDocuments'))
-    CREATE NONCLUSTERED INDEX IX_TranslatedDocuments_DetectedLanguage ON TranslatedDocuments (detected_language);
-    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_TranslatedDocuments_OutputLanguage' AND object_id = OBJECT_ID('TranslatedDocuments'))
-    CREATE NONCLUSTERED INDEX IX_TranslatedDocuments_OutputLanguage ON TranslatedDocuments (output_language);
-    """
-    with pyodbc.connect(conn_str) as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(create_table_query)
-            conn.commit()
+        logger.error(f"Failed to insert translation data: {e}")
+    finally:
+        connection.close()
 
 from datetime import datetime
 import pytz
