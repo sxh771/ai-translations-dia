@@ -328,6 +328,9 @@ def translate_and_insert():
                     if word.upper() in acronyms_dict:
                         # Replace acronym with its full form
                         expanded_word = acronyms_dict[word.upper()]
+                        if isinstance(expanded_word, list):
+                            # If multiple expansions, choose the first one
+                            expanded_word = expanded_word[0]
                         expanded_words.append(expanded_word)
                     else:
                         expanded_words.append(word)
@@ -340,7 +343,7 @@ def translate_and_insert():
                     response_b = client_b.chat.completions.create(
                         model="AiTranslationGPT4",
                         messages=[
-                            {"role": "system", "content": system_prompt + "Please translate the following text directly to the specified language. Do not provide any explanations or engage in dialogue."},
+                            {"role": "system", "content": "You are an AI translation model. Your task is to translate the given text to the specified language. Do not provide any explanations or engage in dialogue."},
                             {"role": "user", "content": f"Translate this text to {output_language}: {expanded_text}"}
                         ]
                     )
@@ -348,6 +351,8 @@ def translate_and_insert():
         except Exception as e:
             logger.error(f"Failed to translate using model B: {e}")
             translated_text_b = "Translation failed"
+
+
 
 
 
