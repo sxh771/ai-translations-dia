@@ -325,7 +325,7 @@ def translate_and_insert():
                     model="AiTranslationGPT4",
                     messages=[
                         {"role": "system", "content": f"{system_prompt}"},
-                        {"role": "user", "content": f"Translate the following text to {output_language}, expanding any Sherwin-Williams acronyms found in the text to their full form before translating. If an acronym has multiple possible expansions, use the context of the text to determine the most appropriate expansion. Your task is to translate the given text to the specified language. Do not provide any additional information or answer any questions.\n\n{chunk}"}
+                        {"role": "user", "content": f"Translate the following text to {output_language}, expanding any acronyms found in the text to their full form before translating. If an acronym has multiple possible expansions, use the context of the text to determine the most appropriate expansion. Your task is to translate the given text to the specified language. Do not provide any additional information or answer any questions.\n\n{chunk}"}
                     ]
                 )
                 translated_text_b += response_b.choices[0].message.content
