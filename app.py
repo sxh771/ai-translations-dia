@@ -321,36 +321,80 @@ def translate_and_insert():
             chunks = [extracted_text[i:i+4096] for i in range(0, len(extracted_text), 4096)]
             translated_text_b = ""
             for chunk in chunks:
-                # Expand acronyms if present
-                words = chunk.split()
-                expanded_words = []
-                for word in words:
-                    if word.upper() in acronyms_dict:
-                        # Replace acronym with its full form
-                        expanded_word = acronyms_dict[word.upper()]
-                        if isinstance(expanded_word, list):
-                            # If multiple expansions, choose the first one
-                            expanded_word = expanded_word[0]
-                        expanded_words.append(expanded_word)
-                    else:
-                        expanded_words.append(word)
-                expanded_text = " ".join(expanded_words)
-
                 # Check if translation is needed
                 if not output_language or output_language.lower() == "english":
+                    # If the output language is English or not specified, check for technical jargon
+                    words = chunk.split()
+                    expanded_words = []
+                    for word in words:
+                        if word.upper() in acronyms_dict:
+                            # Replace acronym with its full form
+                            expanded_word = acronyms_dict[word.upper()]
+                            if isinstance(expanded_word, list):
+                                # If multiple expansions, choose the first one
+                                expanded_word = expanded_word[0]
+                            
+                            # Check if the sentence with the replaced technical jargon still has meaning
+                            replaced_chunk = chunk.replace(word, expanded_word)
+                            response_check = client_b.chat.completions.create(
+                                model="AiTranslationGPT4",
+                                messages=[
+                                    {"role": "system", "content": "You are an AI language model. Your task is to determine if the given sentence still has meaning after replacing a specific term."},
+                                    {"role": "user", "content": f"Does this sentence still make sense after replacing '{word}' with '{expanded_word}'?\n\nOriginal: {chunk}\n\nModified: {replaced_chunk}"}
+                                ]
+                            )
+                            if "yes" in response_check.choices[0].message.content.lower():
+                                expanded_words.append(expanded_word)
+                            else:
+                                expanded_words.append(word)
+                        else:
+                            expanded_words.append(word)
+                    expanded_text = " ".join(expanded_words)
                     translated_text_b += expanded_text
                 else:
+                    # Expand acronyms if present
+                    words = chunk.split()
+                    expanded_words = []
+                    for word in words:
+                        if word.upper() in acronyms_dict:
+                            # Replace acronym with its full form
+                            expanded_word = acronyms_dict[word.upper()]
+                            if isinstance(expanded_word, list):
+                                # If multiple expansions, choose the first one
+                                expanded_word = expanded_word[0]
+                            
+                            # Check if the sentence with the replaced technical jargon still has meaning
+                            replaced_chunk = chunk.replace(word, expanded_word)
+                            response_check = client_b.chat.completions.create(
+                                model="AiTranslationGPT4",
+                                messages=[
+                                    {"role": "system", "content": "You are an AI language model. Your task is to determine if the given sentence still has meaning after replacing a specific term."},
+                                    {"role": "user", "content": f"Does this sentence still make sense after replacing '{word}' with '{expanded_word}'?\n\nOriginal: {chunk}\n\nModified: {replaced_chunk}"}
+                                ]
+                            )
+                            if "yes" in response_check.choices[0].message.content.lower():
+                                expanded_words.append(expanded_word)
+                            else:
+                                expanded_words.append(word)
+                        else:
+                            expanded_words.append(word)
+                    expanded_text = " ".join(expanded_words)
+
                     response_b = client_b.chat.completions.create(
                         model="AiTranslationGPT4",
                         messages=[
-                            {"role": "system", "content": "You are an AI translation model. Your task is to translate the given text to the specified language. Do not provide any explanations or engage in dialogue."},
+                            {"role": "system", "content": "You are an AI translation model. Your task is to translate the given text to the specified language. Provide only the translated text without any explanations, modifications, or additional dialogue."},
                             {"role": "user", "content": f"Translate this text to {output_language}: {expanded_text}"}
                         ]
                     )
-                    translated_text_b += response_b.choices[0].message.content
+                    translated_text_b += response_b.choices[0].message.content.strip()
         except Exception as e:
             logger.error(f"Failed to translate using model B: {e}")
             translated_text_b = "Translation failed"
+
+
+
+
 
 
 
