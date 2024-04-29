@@ -1,10 +1,10 @@
 import logging
 from logging.handlers import RotatingFileHandler
-from flask import Flask, request, jsonify, render_template, make_response, send_from_directory, abort, session
+from flask import Flask, request, jsonify, render_template, send_from_directory, abort, session
 import os
 import requests
 import pyodbc
-from datetime import datetime, timedelta
+from datetime import datetime
 import uuid
 import fitz  # PyMuPDF
 import tempfile
