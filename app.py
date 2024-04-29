@@ -358,7 +358,7 @@ def submit_feedback():
             f"UID={username};"
             f"PWD={password};"
             "TrustServerCertificate=yes;"
-            "Connection Timeout=30;"
+            "Connection Timeout=60;"
         )
 
         # Ensure the Feedback table exists before inserting data
