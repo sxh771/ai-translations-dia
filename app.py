@@ -44,14 +44,16 @@ azure_translation_key = os.environ.get("AZURE_TRANSLATION_KEY")
 azure_translation_endpoint = os.environ.get("AZURE_TRANSLATION_ENDPOINT")
 azure_translation_location = os.environ.get(f"AZURE_TRANSLATION_LOCATION")
 
-# # Configure Speech SDK 
+# # # Configure Speech SDK 
 speech_key = os.environ.get('AZURE_SPEECH_KEY')
 speech_region = os.environ.get('AZURE_SPEECH_REGION')
 speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=speech_region)
 audio_config = speechsdk.audio.AudioOutputConfig(use_default_speaker=True)
-speech_config.speech_synthesis_voice_name = 'en-US-AvaNeural'
+speech_config.speech_synthesis_voice_name = 'en-US-JennyMultilingualNeural'
 speech_config.set_speech_synthesis_output_format(speechsdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3)
 speech_synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
+
+
 
 # Connection details from the Azure SQL Database
 driver = 'ODBC Driver 18 for SQL Server'
