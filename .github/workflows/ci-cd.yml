@@ -28,13 +28,26 @@ jobs:
         run: |
           curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
-      - name: Login to Azure CLI with Managed Identity
+      - name: Login to Azure CLI with Service Principal
         uses: azure/login@v1
         with:
-          creds: <publishData><publishProfile profileName="AI-translations - Web Deploy" publishMethod="MSDeploy" publishUrl="ai-translations.scm.azurewebsites.net:443" msdeploySite="AI-translations" userName="$AI-translations" userPWD="vaPSFmLsPj0Nboq198SoFsYm2N0cAwliYQbB0fwnaylEKkm6GmgX4Bd8rP38" destinationAppUrl="https://ai-translations.azurewebsites.net" SQLServerDBConnectionString="" mySQLDBConnectionString="" hostingProviderForumLink="" controlPanelLink="https://portal.azure.com" webSystem="WebSites"><databases /></publishProfile><publishProfile profileName="AI-translations - FTP" publishMethod="FTP" publishUrl="ftps://waws-prod-blu-549.ftp.azurewebsites.windows.net/site/wwwroot" ftpPassiveMode="True" userName="AI-translations\$AI-translations" userPWD="vaPSFmLsPj0Nboq198SoFsYm2N0cAwliYQbB0fwnaylEKkm6GmgX4Bd8rP38" destinationAppUrl="https://ai-translations.azurewebsites.net" SQLServerDBConnectionString="" mySQLDBConnectionString="" hostingProviderForumLink="" controlPanelLink="https://portal.azure.com" webSystem="WebSites"><databases /></publishProfile><publishProfile profileName="AI-translations - Zip Deploy" publishMethod="ZipDeploy" publishUrl="ai-translations.scm.azurewebsites.net:443" userName="$AI-translations" userPWD="vaPSFmLsPj0Nboq198SoFsYm2N0cAwliYQbB0fwnaylEKkm6GmgX4Bd8rP38" destinationAppUrl="https://ai-translations.azurewebsites.net" SQLServerDBConnectionString="" mySQLDBConnectionString="" hostingProviderForumLink="" controlPanelLink="https://portal.azure.com" webSystem="WebSites"><databases /></publishProfile></publishData>
+          creds: |
+            {
+                "clientId": "df9f799a-de11-4764-b31c-8c2cb3f2de21",
+                "clientSecret": "WNC8Q~atGOayfTM19GGk8-1aer1uAu5DyPpcNc26",
+                "subscriptionId": "50430276-4c7e-484a-b313-3a71955aa341",
+                "tenantId": "44b79a67-d972-49ba-9167-8eb05f754a1a",
+                "activeDirectoryEndpointUrl": "https://login.microsoftonline.com",
+                "resourceManagerEndpointUrl": "https://management.azure.com/",
+                "activeDirectoryGraphResourceId": "https://graph.windows.net/",
+                "sqlManagementEndpointUrl": "https://management.core.windows.net:8443/",
+                "galleryEndpointUrl": "https://gallery.azure.com/",
+                "managementEndpointUrl": "https://management.core.windows.net/"
+            }
 
       - name: Deploy to Azure Kubernetes Service
         run: |
           az aks get-credentials --resource-group Translator --name AiTranslation
           kubectl apply -f deployment.yaml
+          kubectl apply -f service.yaml
           kubectl apply -f service.yaml
