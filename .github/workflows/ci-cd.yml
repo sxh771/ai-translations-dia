@@ -25,8 +25,19 @@ jobs:
         docker push aitranslation.azurecr.io/html-translator-service:latest
 
     - name: Install Azure CLI
-      run: |
+    run: |
         curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+    - name: Login to Azure CLI with Managed Identity
+    uses: azure/login@v1
+    with:
+        creds: <publishData><publishProfile profileName="AI-translations - Web Deploy" publishMethod="MSDeploy" publishUrl="ai-translations.scm.azurewebsites.net:443" msdeploySite="AI-translations" userName="$AI-translations" userPWD="vaPSFmLsPj0Nboq198SoFsYm2N0cAwliYQbB0fwnaylEKkm6GmgX4Bd8rP38" destinationAppUrl="https://ai-translations.azurewebsites.net" SQLServerDBConnectionString="" mySQLDBConnectionString="" hostingProviderForumLink="" controlPanelLink="https://portal.azure.com" webSystem="WebSites"><databases /></publishProfile><publishProfile profileName="AI-translations - FTP" publishMethod="FTP" publishUrl="ftps://waws-prod-blu-549.ftp.azurewebsites.windows.net/site/wwwroot" ftpPassiveMode="True" userName="AI-translations\$AI-translations" userPWD="vaPSFmLsPj0Nboq198SoFsYm2N0cAwliYQbB0fwnaylEKkm6GmgX4Bd8rP38" destinationAppUrl="https://ai-translations.azurewebsites.net" SQLServerDBConnectionString="" mySQLDBConnectionString="" hostingProviderForumLink="" controlPanelLink="https://portal.azure.com" webSystem="WebSites"><databases /></publishProfile><publishProfile profileName="AI-translations - Zip Deploy" publishMethod="ZipDeploy" publishUrl="ai-translations.scm.azurewebsites.net:443" userName="$AI-translations" userPWD="vaPSFmLsPj0Nboq198SoFsYm2N0cAwliYQbB0fwnaylEKkm6GmgX4Bd8rP38" destinationAppUrl="https://ai-translations.azurewebsites.net" SQLServerDBConnectionString="" mySQLDBConnectionString="" hostingProviderForumLink="" controlPanelLink="https://portal.azure.com" webSystem="WebSites"><databases /></publishProfile></publishData>
+
+    - name: Deploy to Azure Kubernetes Service
+    run: |
+        az aks get-credentials --resource-group Translator --name AiTranslation
+        kubectl apply -f deployment.yaml
+        kubectl apply -f service.yaml
 
     - name: Deploy to Azure Kubernetes Service
       run: |
