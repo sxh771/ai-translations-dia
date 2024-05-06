@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-translation-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: ai-translation
+  template:
+    metadata:
+      labels:
+        app: ai-translation
+    spec:
+      containers:
+      - name: ai-translation-container
+        image: aitranslation.azurecr.io/html-translator-service:latest  # Replace with your actual image path
+        ports:
+        - containerPort: 5000
+        env:
+        - name: NAME
+          value: "AI-Translation"
