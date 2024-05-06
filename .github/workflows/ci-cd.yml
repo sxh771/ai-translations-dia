@@ -24,8 +24,9 @@ jobs:
         docker build -t aitranslation.azurecr.io/html-translator-service:latest .
         docker push aitranslation.azurecr.io/html-translator-service:latest
 
-    - name: Set up Azure CLI
-      uses: azure/setup-azure-cli@v1
+        - name: Install Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
     - name: Deploy to Azure Kubernetes Service
       run: |
