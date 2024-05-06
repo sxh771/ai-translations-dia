@@ -16,8 +16,8 @@ jobs:
         uses: azure/docker-login@v1
         with:
           login-server: aitranslation.azurecr.io 
-          username: AiTranslation 
-          password: 5lYJiwLnddzUFrwD9LxNBt/TF4NkVW0pyB74TMXMhe+ACRDCjB8I
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
 
       - name: Build and push Docker image
         run: |
@@ -31,23 +31,10 @@ jobs:
       - name: Login to Azure CLI with Service Principal
         uses: azure/login@v1
         with:
-          creds: |
-            {
-                "clientId": "df9f799a-de11-4764-b31c-8c2cb3f2de21",
-                "clientSecret": "WNC8Q~atGOayfTM19GGk8-1aer1uAu5DyPpcNc26",
-                "subscriptionId": "50430276-4c7e-484a-b313-3a71955aa341",
-                "tenantId": "44b79a67-d972-49ba-9167-8eb05f754a1a",
-                "activeDirectoryEndpointUrl": "https://login.microsoftonline.com",
-                "resourceManagerEndpointUrl": "https://management.azure.com/",
-                "activeDirectoryGraphResourceId": "https://graph.windows.net/",
-                "sqlManagementEndpointUrl": "https://management.core.windows.net:8443/",
-                "galleryEndpointUrl": "https://gallery.azure.com/",
-                "managementEndpointUrl": "https://management.core.windows.net/"
-            }
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Deploy to Azure Kubernetes Service
         run: |
           az aks get-credentials --resource-group Translator --name AiTranslation
           kubectl apply -f deployment.yaml
-          kubectl apply -f service.yaml
           kubectl apply -f service.yaml
