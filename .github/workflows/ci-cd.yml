@@ -26,7 +26,9 @@ jobs:
 
       - name: Install Azure CLI
         run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          # curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          brew update
+          brew install azure-cli          
 
       - name: Login to Azure CLI with Service Principal
         uses: azure/login@v1
