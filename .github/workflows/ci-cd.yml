@@ -24,18 +24,10 @@ jobs:
           docker build -t aitranslation.azurecr.io/html-translator-service:latest .
           docker push aitranslation.azurecr.io/html-translator-service:latest
 
-      - name: Install Azure CLI
+      - name: Set up Kubectl
         run: |
-          # curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          arch -arm64 brew update
-          arch -arm64 brew install azure-cli
-
-      - name: Login to Azure CLI with Service Principal
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-        env:
-          AZURE_SUBSCRIPTION_ID: '50430276-4c7e-484a-b313-3a71955aa341'
+          echo "${{ secrets.KUBECONFIG_DATA }}" | base64 --decode > $GITHUB_WORKSPACE/kubeconfig
+          echo "KUBECONFIG=$GITHUB_WORKSPACE/kubeconfig" >> $GITHUB_ENV
 
       - name: Deploy to Azure Kubernetes Service
         run: |
