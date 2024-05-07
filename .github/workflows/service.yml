@@ -1,12 +1,18 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: ai-translation-service
-spec:
-  selector:
-    app: ai-translation
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 5000
-  type: LoadBalancer
+name: Service Deployment
+
+on:
+  push:
+    branches:
+      - Kubernetes  # Adjust this to match your branch name if different
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Deploy to Kubernetes
+        run: |
+          kubectl apply -f deployment.yml
+          kubectl apply -f service.yml
