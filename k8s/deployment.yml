@@ -1,8 +1,3 @@
-on:
-  push:
-    branches:
-      - Kubernetes  # Trigger on push to the Kubernetes branch
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,9 +14,6 @@ spec:
     spec:
       containers:
       - name: ai-translation-container
-        image: aitranslation.azurecr.io/html-translator-service:latest  # Replace with your actual image path
+        image: aitranslation.azurecr.io/html-translator-service:latest
         ports:
         - containerPort: 5000
-        env:
-        - name: NAME
-          value: "AI-Translation"
