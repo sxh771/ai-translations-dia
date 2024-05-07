@@ -34,9 +34,12 @@ jobs:
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+        env:
+          AZURE_SUBSCRIPTION_ID: '50430276-4c7e-484a-b313-3a71955aa341'
 
       - name: Deploy to Azure Kubernetes Service
         run: |
+          az account set --subscription ${{ env.AZURE_SUBSCRIPTION_ID }}
           az aks get-credentials --resource-group Translator --name AiTranslation
           kubectl apply -f deployment.yaml
           kubectl apply -f service.yaml
