@@ -15,10 +15,10 @@ jobs:
     runs-on: [self-hosted, macOS, X64]  # Specify labels that match your self-hosted runner
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3  # Updated to the correct version
 
       - name: Set up Python version
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v3  # Updated to the correct version
         with:
           python-version: '3.8'
 
