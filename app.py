@@ -11,6 +11,7 @@ import tempfile
 import docx2txt
 from azure.storage.blob import BlobServiceClient
 import azure.cognitiveservices.speech as speechsdk
+import pandas as pd  # Added for Excel file handling
 
 from urllib3 import disable_warnings, exceptions
 
@@ -110,12 +111,65 @@ def extract_text_from_docx(docx_file_stream):
         text = docx2txt.process(tmp_file.name)
     return text
 
+def translate_excel_columns(file_path, column_names, target_language='pt-BR', new_file_path=None):
+    # Load the Excel file, ensuring the first row is used as the header
+    df = pd.read_excel(file_path)
+
+    # Debugging: Print the columns to check if they are read correctly
+    print("Columns in DataFrame:", df.columns.tolist())
+
+    # Check if the specified column names exist in the DataFrame
+    missing_columns = [col for col in column_names if col not in df.columns]
+    if missing_columns:
+        raise ValueError(f"Missing columns in the Excel file {file_path}: {missing_columns}")
+
+    # Create a new DataFrame with only the specified columns
+    df_selected = df[column_names].copy()
+
+    # Translate the selected columns for all rows
+    for column in column_names:
+        df_selected[column] = df_selected[column].apply(lambda x: translate_text(x, target_language) if pd.notna(x) else x)
+
+    # Update the original DataFrame with the translated values
+    df.update(df_selected)
+
+    # Save the modified DataFrame to a new Excel file
+    if new_file_path is None:
+        new_file_path = file_path.replace('.xlsx', '_translated.xlsx')
+    df.to_excel(new_file_path, index=False)
 
 # Default page.
 @app.route('/')
 def home():
     logger.info("Serving the home page.")
     return render_template('index.html')
+
+@app.route('/translate_excel', methods=['POST'])
+def translate_excel():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+    if not file.filename.endswith('.xlsx'):
+        return jsonify({"error": "Unsupported file type"}), 400
+
+    # Save the uploaded file temporarily
+    temp_path = os.path.join(tempfile.gettempdir(), file.filename)
+    file.save(temp_path)
+
+    # Define the columns to be translated and the target language
+    column_names_to_translate = ['Column1', 'Column2']  # Adjust column names as needed
+    target_language = 'pt-BR'  # Adjust target language as needed
+
+    # Translate the Excel file
+    try:
+        translate_excel_columns(temp_path, column_names_to_translate, target_language=target_language, new_file_path=temp_path)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    # Return the translated file
+    return send_from_directory(directory=os.path.dirname(temp_path), filename=os.path.basename(temp_path), as_attachment=True)
 
 def translate_text(text, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language):
     """Detect language and translate text using Azure Translation, handling large texts by splitting them into chunks."""
@@ -294,6 +348,23 @@ def translate_and_insert():
             extracted_text = extract_text_from_docx(file.stream)
         elif file.filename.endswith('.txt'):
             extracted_text = file.stream.read().decode('utf-8')
+        elif file.filename.endswith('.xlsx'):  # Added handling for Excel files
+            # Save the uploaded file temporarily
+            temp_path = os.path.join(tempfile.gettempdir(), file.filename)
+            file.save(temp_path)
+
+            # Define the columns to be translated and the target language
+            column_names_to_translate = ['Column1', 'Column2']  # Adjust column names as needed
+            target_language = 'pt-BR'  # Adjust target language as needed
+
+            # Translate the Excel file
+            try:
+                translate_excel_columns(temp_path, column_names_to_translate, target_language=target_language, new_file_path=temp_path)
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+            # Return the translated file
+            return send_from_directory(directory=os.path.dirname(temp_path), filename=os.path.basename(temp_path), as_attachment=True)
         else:
             return jsonify({"error": "Unsupported file type"}), 400
         # Upload the file to Azure Blob Storage and get the blob URL
