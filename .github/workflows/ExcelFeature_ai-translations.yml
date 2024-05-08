@@ -16,8 +16,7 @@ jobs:
       - name: Install Python
         run: |
           arch -arm64 brew install python@3.8
-          echo "alias python=python3.8" >> ~/.bash_profile
-          echo "alias pip=pip3" >> ~/.bash_profile
+          echo "export PATH=\"/usr/local/opt/python@3.8/bin:$PATH\"" >> ~/.bash_profile
           source ~/.bash_profile
 
       - name: Create and start virtual environment
@@ -26,7 +25,10 @@ jobs:
           source venv/bin/activate
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python3.8 -m ensurepip
+          python3.8 -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Zip artifact for deployment
         run: zip release.zip ./* -r
