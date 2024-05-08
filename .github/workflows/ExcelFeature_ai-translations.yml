@@ -47,7 +47,7 @@ jobs:
     environment:
       name: 'ExcelFeatures'
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-    
+
     steps:
       - name: Download artifact from build job
         uses: actions/download-artifact@v3
@@ -58,7 +58,7 @@ jobs:
         run: unzip release.zip
 
       - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v2
+        uses: azure/webapps-deploy@v2.0.0  # Example: Specifying a more specific version if compatible
         id: deploy-to-webapp
         with:
           app-name: 'AI-translations'
