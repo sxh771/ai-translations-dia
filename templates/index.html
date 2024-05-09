@@ -293,11 +293,17 @@
 // });
 
     // Event listener for Excel file translation
-    document.getElementById('excelForm').addEventListener('submit', function(e) {
-        e.preventDefault();  // Prevent the default form submission for Excel file translation
-        const formData = new FormData(this);
 
-        fetch('/translate_excel', {
+    document.getElementById('excelForm').addEventListener('submit', function(e) {
+    e.preventDefault();  // Prevent the default form submission for Excel file translation
+
+    // Show the spinner and the thinking message
+    document.getElementById('loadingSpinner').style.display = 'block';
+    document.getElementById('thinkingMessage').style.display = 'block';
+
+    const formData = new FormData(this);
+
+    fetch('/translate_excel', {
         method: 'POST',
         body: formData,
     })
@@ -316,7 +322,14 @@
         a.click();
         window.URL.revokeObjectURL(url);
     })
-    .catch(error => console.error('Error:', error));
+    .catch(error => {
+        console.error('Error:', error);
+    })
+    .finally(() => {
+        // Hide the spinner and the thinking message
+        document.getElementById('loadingSpinner').style.display = 'none';
+        document.getElementById('thinkingMessage').style.display = 'none';
+    });
 });
 
 

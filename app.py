@@ -18,8 +18,12 @@ from urllib3 import disable_warnings, exceptions
 # Disable SSL warnings
 disable_warnings(exceptions.InsecureRequestWarning)
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# Configure logging to include the line number
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s - Line: %(lineno)d'
+)
+
 logger = logging.getLogger(__name__)
 
 # Create a file handler and set level to debug
@@ -94,22 +98,34 @@ def upload_file_to_blob(file_stream, file_name):
     blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{file_name_with_timestamp}"
     return blob_url
 
-def extract_text_from_pdf(pdf_file):
-    text = ""
-    with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
-        for page in doc:
-            text += page.get_text()
-    return text
+def read_excel_file(file_path):
+    _, file_extension = os.path.splitext(file_path)
+    if file_extension == '.xlsx':
+        engine = 'openpyxl'
+    elif file_extension == '.xls':
+        engine = 'xlrd'
+    else:
+        raise ValueError("Unsupported file type")
 
-def extract_text_from_docx(docx_file_stream):
-    # Create a temporary file to save the uploaded .docx file
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        # Write the content of the uploaded file to the temporary file
-        docx_file_stream.seek(0)  # Go to the beginning of the file stream
-        tmp_file.write(docx_file_stream.read())
-        # Use the path of the temporary file with docx2txt
-        text = docx2txt.process(tmp_file.name)
-    return text
+    df = pd.read_excel(file_path, engine=engine)
+    return df
+
+# def extract_text_from_pdf(pdf_file):
+#     text = ""
+#     with fitz.open(stream=pdf_file.read(), filetype="pdf") as doc:
+#         for page in doc:
+#             text += page.get_text()
+#     return text
+
+# def extract_text_from_docx(docx_file_stream):
+#     # Create a temporary file to save the uploaded .docx file
+#     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+#         # Write the content of the uploaded file to the temporary file
+#         docx_file_stream.seek(0)  # Go to the beginning of the file stream
+#         tmp_file.write(docx_file_stream.read())
+#         # Use the path of the temporary file with docx2txt
+#         text = docx2txt.process(tmp_file.name)
+#     return text
 
 def translate_excel_columns_by_index(file_path, column_indices, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language, new_file_path=None):
     import pandas as pd
@@ -135,36 +151,75 @@ def home():
 
 @app.route('/translate_excel', methods=['POST'])
 def translate_excel():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-    if not file.filename.endswith('.xlsx'):
-        return jsonify({"error": "Unsupported file type"}), 400
+    if not file or file.filename == '':
+        return jsonify({"error": "No file provided or empty filename"}), 400
 
-    # Retrieve the language selection from the form data
     target_language = request.form.get('language', 'en')  # Default to English if not specified
+    user_ip = request.remote_addr  # Get user IP address within the request context
+            # Translate the Excel file and save it locally
+    temp_dir = tempfile.gettempdir()
+    file_path = os.path.join(temp_dir, file.filename)
+    file.save(file_path)
+
 
     try:
-        # Save the uploaded file temporarily
-        temp_dir = tempfile.gettempdir()
-        original_file_path = os.path.join(temp_dir, file.filename)
-        file.save(original_file_path)
+        # Read the Excel file
+        df = read_excel_file(file_path)
+        logger.info("Excel file read successfully.")
+        # Upload the original file to Azure Blob Storage
+        original_file_url = upload_file_to_blob(file.stream, file.filename)
 
-        # Define the columns to be translated
-        column_indices_to_translate = [13, 14, 15]  # Example: Translate first three columns
 
-        # Translate the Excel file
         translated_file_path = os.path.join(temp_dir, f"{os.path.splitext(file.filename)[0]}_translated.xlsx")
-        translate_excel_columns_by_index(original_file_path, column_indices_to_translate, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language, new_file_path=translated_file_path)
+        column_indices_to_translate = [13,14,15]  # Example: Translate first three columns
+        translate_excel_columns_by_index(file_path, column_indices_to_translate, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language, new_file_path=translated_file_path)
 
+        # Upload the translated file to Azure Blob Storage
+        with open(translated_file_path, 'rb') as f:
+            translated_file_url = upload_file_to_blob(f, os.path.basename(translated_file_path))
+
+        # Insert file URLs into the database
+        insert_file_urls_into_db(
+            original_file_url=original_file_url,
+            translated_file_url=translated_file_url,
+            target_language=target_language,
+            detected_language=detected_language,  # Make sure this is defined
+            user_ip=request.remote_addr,
+            input_text=None,  # Adjust as necessary
+            translated_text=None  # Adjust as necessary
+        )
+        # Return the translated file as a response
         response = send_from_directory(directory=temp_dir, path=os.path.basename(translated_file_path), as_attachment=True)
         response.headers["Content-Disposition"] = f"attachment; filename={os.path.basename(translated_file_path)}"
         return response
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         return jsonify({"error": str(e)}), 500
+# Assuming user_ip and other parameters are now correctly handled
+
+def insert_file_urls_into_db(original_file_url, translated_file_url, target_language, detected_language=None, user_ip=None, input_text=None, translated_text=None):
+    conn_str = (
+        f"DRIVER={{{driver}}};"
+        f"SERVER={server};"
+        f"DATABASE={database};"
+        f"UID={username};"
+        f"PWD={password};"
+        "TrustServerCertificate=yes;"
+        "Connection Timeout=30;"
+    )
+    insert_query = """
+    INSERT INTO TranslatedDocuments (input_text, detected_language, translated_text, output_language, blob_url, user_ip, translated_text_b, translated_text_a, original_file_url, translated_file_url)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    try:
+        with pyodbc.connect(conn_str) as conn:
+            with conn.cursor() as cursor:
+                # Ensure you pass all parameters correctly
+                cursor.execute(insert_query, (input_text, detected_language, translated_text, target_language, original_file_url, user_ip, None, None, original_file_url, translated_file_url))
+                conn.commit()
+    except Exception as e:
+        logger.error(f"Failed to insert file URLs into database: {e}")
 
 
     # # Return the translated file
