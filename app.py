@@ -143,11 +143,7 @@ def translate_excel():
     if not file.filename.endswith('.xlsx'):
         return jsonify({"error": "Unsupported file type"}), 400
 
-
-
-    # Translate the Excel file
     try:
-                # Save the uploaded file temporarily
         # Save the uploaded file temporarily
         temp_dir = tempfile.gettempdir()
         original_file_path = os.path.join(temp_dir, file.filename)
@@ -156,19 +152,19 @@ def translate_excel():
         # Define the columns to be translated and the target language
         column_indices_to_translate = [12, 13, 14]  # Zero-based index for columns 13, 14, and 15
         target_language = 'pt-BR'  # Adjust target language as needed
+
         # Translate the Excel file
         translated_file_path = os.path.join(temp_dir, f"{os.path.splitext(file.filename)[0]}translated.xlsx")
-
         translate_excel_columns_by_index(original_file_path, column_indices_to_translate, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language, new_file_path=translated_file_path)
-                # Return the translated file
-        return send_from_directory(
-            directory=temp_dir,
-            path=os.path.basename(translated_file_path),
-            as_attachment=True,
-            download_name=os.path.basename(translated_file_path)
-        )
+
+        response = send_from_directory(directory=temp_dir, path = os.path.basename(translated_file_path), as_attachment=True)
+        response.headers["Content-Disposition"] = f"attachment; filename={os.path.basename(translated_file_path)}"
+        return response
+
     except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
 
     # # Return the translated file
     # return send_from_directory(os.path.dirname(temp_path), os.path.basename(temp_path), as_attachment=True)

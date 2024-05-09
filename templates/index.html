@@ -160,6 +160,11 @@
                 <input type="submit" value="Translate Text">
             </form>
   
+            <form id="excelForm" enctype="multipart/form-data">
+                <input type="file" id="fileInput" name="file" accept=".xlsx">
+                <input type="submit" value="Translate Excel">
+            </form>
+                        
             <div class="translations-container">
                 <div class="translation-column">
                     <h3 class="translated-header">Translated by Model A</h3>
@@ -277,6 +282,33 @@
                     document.getElementById('thinkingMessage').style.display = 'none';
         });
     }
+});
+
+    // Event listener for Excel file translation
+    document.getElementById('excelForm').addEventListener('submit', function(e) {
+        e.preventDefault();  // Prevent the default form submission for Excel file translation
+        const formData = new FormData(this);
+
+        fetch('/translate_excel', {
+        method: 'POST',
+        body: formData,
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Network response was not ok.');
+        const filename = response.headers.get('Content-Disposition').split('filename=')[1].replaceAll('"', '');
+        return response.blob().then(blob => ({ blob, filename }));
+    })
+    .then(({ blob, filename }) => {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = filename;  // Use the filename from the Content-Disposition header
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+    })
+    .catch(error => console.error('Error:', error));
 });
 
 
