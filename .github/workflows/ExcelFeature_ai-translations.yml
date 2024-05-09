@@ -17,6 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check Python version
+        run: |
+          python3.8 --version
+          which python3.8
+
       - name: Set up Python version
         uses: actions/setup-python@v1
         with:
