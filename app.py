@@ -166,6 +166,8 @@ def translate_excel():
     try:
         # Read the Excel file
         df = read_excel_file(file_path)
+
+        
         logger.info("Excel file read successfully.")
         # Upload the original file to Azure Blob Storage
         original_file_url = upload_file_to_blob(file.stream, file.filename)
@@ -184,7 +186,7 @@ def translate_excel():
             original_file_url=original_file_url,
             translated_file_url=translated_file_url,
             target_language=target_language,
-            detected_language=detected_language,  # Make sure this is defined
+            detected_language=None,  # Make sure this is defined
             user_ip=request.remote_addr,
             input_text=None,  # Adjust as necessary
             translated_text=None  # Adjust as necessary
