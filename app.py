@@ -1,6 +1,6 @@
 import logging
 from logging.handlers import RotatingFileHandler
-from flask import Flask, request, jsonify, render_template, make_response, send_from_directory, abort, session
+from flask import Flask, request, jsonify, render_template, send_from_directory, abort
 import os
 import requests
 import pyodbc
@@ -111,27 +111,16 @@ def extract_text_from_docx(docx_file_stream):
         text = docx2txt.process(tmp_file.name)
     return text
 
-def translate_excel_columns(file_path, column_names, target_language='pt-BR', new_file_path=None):
-    # Load the Excel file, ensuring the first row is used as the header
+def translate_excel_columns_by_index(file_path, column_indices, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language, new_file_path=None):
+    import pandas as pd
     df = pd.read_excel(file_path)
 
-    # Debugging: Print the columns to check if they are read correctly
-    print("Columns in DataFrame:", df.columns.tolist())
-
-    # Check if the specified column names exist in the DataFrame
-    missing_columns = [col for col in column_names if col not in df.columns]
-    if missing_columns:
-        raise ValueError(f"Missing columns in the Excel file {file_path}: {missing_columns}")
-
-    # Create a new DataFrame with only the specified columns
-    df_selected = df[column_names].copy()
-
-    # Translate the selected columns for all rows
-    for column in column_names:
-        df_selected[column] = df_selected[column].apply(lambda x: translate_text(x, target_language) if pd.notna(x) else x)
-
-    # Update the original DataFrame with the translated values
-    df.update(df_selected)
+    # Translate the specified columns by index
+    for index in column_indices:
+        column_name = df.columns[index]
+        df[column_name] = df[column_name].apply(
+            lambda x: translate_text(x, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language) if pd.notna(x) else x
+        )
 
     # Save the modified DataFrame to a new Excel file
     if new_file_path is None:
@@ -154,22 +143,35 @@ def translate_excel():
     if not file.filename.endswith('.xlsx'):
         return jsonify({"error": "Unsupported file type"}), 400
 
-    # Save the uploaded file temporarily
-    temp_path = os.path.join(tempfile.gettempdir(), file.filename)
-    file.save(temp_path)
 
-    # Define the columns to be translated and the target language
-    column_names_to_translate = ['Column1', 'Column2']  # Adjust column names as needed
-    target_language = 'pt-BR'  # Adjust target language as needed
 
     # Translate the Excel file
     try:
-        translate_excel_columns(temp_path, column_names_to_translate, target_language=target_language, new_file_path=temp_path)
+                # Save the uploaded file temporarily
+        # Save the uploaded file temporarily
+        temp_dir = tempfile.gettempdir()
+        original_file_path = os.path.join(temp_dir, file.filename)
+        file.save(original_file_path)
+
+        # Define the columns to be translated and the target language
+        column_indices_to_translate = [12, 13, 14]  # Zero-based index for columns 13, 14, and 15
+        target_language = 'pt-BR'  # Adjust target language as needed
+        # Translate the Excel file
+        translated_file_path = os.path.join(temp_dir, f"{os.path.splitext(file.filename)[0]}translated.xlsx")
+
+        translate_excel_columns_by_index(original_file_path, column_indices_to_translate, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language, new_file_path=translated_file_path)
+                # Return the translated file
+        return send_from_directory(
+            directory=temp_dir,
+            path=os.path.basename(translated_file_path),
+            as_attachment=True,
+            download_name=os.path.basename(translated_file_path)
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-    # Return the translated file
-    return send_from_directory(directory=os.path.dirname(temp_path), filename=os.path.basename(temp_path), as_attachment=True)
+    # # Return the translated file
+    # return send_from_directory(os.path.dirname(temp_path), os.path.basename(temp_path), as_attachment=True)
 
 def translate_text(text, azure_translation_key, azure_translation_endpoint, azure_translation_location, target_language):
     """Detect language and translate text using Azure Translation, handling large texts by splitting them into chunks."""
@@ -328,60 +330,60 @@ def synthesize_speech():
 
 @app.route('/translate_and_insert', methods=['POST'])
 def translate_and_insert():
-    # Initialize blob_url to None
+    logger.info("Starting the translate_and_insert process.")
     blob_url = None
-    
     extracted_text = ""
-    # Check if text input is provided
-    if 'text' in request.form and request.form['text'].strip():
-        extracted_text = request.form['text'].strip()
-        # Synthesize speech for the input text
-        speech_synthesis_result = speech_synthesizer.speak_text_async(extracted_text).get()
-        if speech_synthesis_result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
-            logger.error("Failed to synthesize speech for the input text.")
-    # Check if a file is uploaded; this will override text input if both are provided
-    if 'file' in request.files and request.files['file']:
-        file = request.files['file']
-        if file.filename.endswith('.pdf'):
-            extracted_text = extract_text_from_pdf(file.stream)
-        elif file.filename.endswith('.docx'):
-            extracted_text = extract_text_from_docx(file.stream)
-        elif file.filename.endswith('.txt'):
-            extracted_text = file.stream.read().decode('utf-8')
-        elif file.filename.endswith('.xlsx'):  # Added handling for Excel files
-            # Save the uploaded file temporarily
-            temp_path = os.path.join(tempfile.gettempdir(), file.filename)
-            file.save(temp_path)
-
-            # Define the columns to be translated and the target language
-            column_names_to_translate = ['Column1', 'Column2']  # Adjust column names as needed
-            target_language = 'pt-BR'  # Adjust target language as needed
-
-            # Translate the Excel file
-            try:
-                translate_excel_columns(temp_path, column_names_to_translate, target_language=target_language, new_file_path=temp_path)
-            except Exception as e:
-                return jsonify({"error": str(e)}), 500
-
-            # Return the translated file
-            return send_from_directory(directory=os.path.dirname(temp_path), filename=os.path.basename(temp_path), as_attachment=True)
-        else:
-            return jsonify({"error": "Unsupported file type"}), 400
-        # Upload the file to Azure Blob Storage and get the blob URL
-        blob_url = upload_file_to_blob(file.stream, file.filename)
-
-    # Proceed with translation and database insertion as before
-    # Ensure blob_url is handled correctly when it's None
-    output_language = request.form['language']
 
     try:
-        # Use 'extracted_text' instead of 'input_text'
-        translated_text, detected_language = translate_text(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
+        # Check if text input is provided
+        if 'text' in request.form and request.form['text'].strip():
+            extracted_text = request.form['text'].strip()
+            logger.info(f"Extracted text from form: {extracted_text[:100]}")  # Log first 100 characters of text
 
-        # Synthesize speech for the translated text
-        speech_synthesis_result = speech_synthesizer.speak_text_async(translated_text).get()
-        if speech_synthesis_result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
-            logger.error("Failed to synthesize speech for the translated text.")
+            # Synthesize speech for the input text
+            speech_synthesis_result = speech_synthesizer.speak_text_async(extracted_text).get()
+            if speech_synthesis_result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
+                logger.error("Failed to synthesize speech for the input text.")
+                raise Exception("Speech synthesis failed.")
+
+        # Check if a file is uploaded; this will override text input if both are provided
+        if 'file' in request.files and request.files['file']:
+            file = request.files['file']
+            logger.info(f"Received file for translation: {file.filename}")
+
+            if file.filename.endswith('.pdf'):
+                extracted_text = extract_text_from_pdf(file.stream)
+            elif file.filename.endswith('.docx'):
+                extracted_text = extract_text_from_docx(file.stream)
+            elif file.filename.endswith('.txt'):
+                extracted_text = file.stream.read().decode('utf-8')
+            elif file.filename.endswith('.xlsx'):
+                original_temp_path = os.path.join(tempfile.gettempdir(), file.filename)
+                file.save(original_temp_path)
+                logger.info(f"Saved file temporarily at {original_temp_path}")
+                translated_file_path = original_temp_path.replace('.xlsx', '_translated.xlsx')
+
+                translate_excel_columns_by_index(original_temp_path, [12, 13, 14], azure_translation_key, azure_translation_endpoint, azure_translation_location, 'pt-BR', new_file_path=translated_file_path)
+                logger.info(f"Translation completed and saved to {translated_file_path}")
+                
+                return send_from_directory(
+                    directory=os.path.dirname(translated_file_path), 
+                    path=os.path.basename(translated_file_path), 
+                    as_attachment=True,
+                    download_name=os.path.basename(translated_file_path)
+                )                
+            else:
+                logger.error("Unsupported file type provided.")
+                return jsonify({"error": "Unsupported file type"}), 400
+
+            # Upload the file to Azure Blob Storage and get the blob URL
+            blob_url = upload_file_to_blob(file.stream, file.filename)
+            logger.info(f"Uploaded file to blob storage: {blob_url}")
+
+        # Proceed with translation and database insertion
+        output_language = request.form['language']
+        translated_text, detected_language = translate_text(extracted_text, azure_translation_key, azure_translation_endpoint, azure_translation_location, output_language)
+        logger.info(f"Translation successful: {translated_text[:100]}")  # Log first 100 characters of translated text
 
         # Define your connection string (adjusted for your application's needs)
         conn_str = (
@@ -414,8 +416,8 @@ def translate_and_insert():
         return jsonify({"message": "Data inserted successfully", "translated_text": translated_text, "detected_language": detected_language, "output_language": output_language}), 200
 
     except Exception as e:
-        logger.error(f"Failed to translate and insert data: {e}")
-        return jsonify({"error": "Failed to translate and insert data"}), 500
+        logger.error(f"Error during translation and insertion: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/submit_feedback', methods=['POST'])
 def submit_feedback():
