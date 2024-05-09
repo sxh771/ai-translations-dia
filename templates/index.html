@@ -123,21 +123,29 @@
     <div class="content-container">
         <!-- All your content goes here -->
             <h1 class="centered-title">DIA</h1>
-            <h2>Proof of Concept for AI-Powered Translation</h2>
+            <h2>            Proof of Concept for AI-Powered Translation</h2>
             
             <!-- adding a text form for user input -->
             <form id="textInputForm" enctype="multipart/form-data">
-                <div id="drop_zone" style="width: 100%; height: 100px; border: 2px dashed #0087F7; border-radius: 5px; text-align: center; line-height: 100px;">
+                <!-- <div id="drop_zone" style="width: 100%; height: 100px; border: 2px dashed #0087F7; border-radius: 5px; text-align: center; line-height: 100px;">
                     Drag and drop your file here
-                </div>
-                <input type="file" id="file_input" name="file" accept=".txt,.pdf,.docx" style="display: none;"><br>
+                </div> -->
+                <!-- <input type="file" id="file_input" name="file" accept=".txt,.pdf,.docx" style="display: none;"><br> -->
                 <!-- Original Text Input Area with Speaker Icon -->
-                <textarea id="text_input" name="text" placeholder="Enter text to translate or choose a file below"></textarea>
-                <i id="original_speaker" class="fa fa-volume-up" aria-hidden="true" onclick="playAudio('original')"></i>
+                <!-- <textarea id="text_input" name="text" placeholder="Enter text to translate or choose a file below"></textarea> -->
+                <!-- <i id="original_speaker" class="fa fa-volume-up" aria-hidden="true" onclick="playAudio('original')"></i> -->
                 <br>
                 <br>
 
-                <p>Supported file types: .txt, .pdf, .docx</p>
+                <p>Upload Excel file with .xlsx extension, select a language to translate</p>
+            <!-- <br></br> -->
+
+
+                <!-- <input type="submit" value="Translate Text"> -->
+            </form>
+  
+            <form id="excelForm" enctype="multipart/form-data">
+                <input type="file" id="fileInput" name="file" accept=".xlsx">
 
                 <label for="language">Select language:</label>
                 <select id="language" name="language">
@@ -157,38 +165,38 @@
                     <option value="sv">Swedish</option> <!-- Added Swedish -->
                     <option value="vi">Vietnamese</option> <!-- Added Vietnamese -->
                 </select><br>
-                <input type="submit" value="Translate Text">
-            </form>
-  
-            <form id="excelForm" enctype="multipart/form-data">
-                <input type="file" id="fileInput" name="file" accept=".xlsx">
+                <br>
                 <input type="submit" value="Translate Excel">
+
             </form>
                         
             <div class="translations-container">
-                <div class="translation-column">
+                <!-- <div class="translation-column">
                     <h3 class="translated-header">Translated by Model A</h3>
                     <div id="translated_content_A" class="translated-text-box" readonly>
-                        <!-- Translated text by Model A will be dynamically inserted here -->
+                        Translated text by Model A will be dynamically inserted here
                     </div>
                     <i id="translated_speaker_A" class="fa fa-volume-up" aria-hidden="true" onclick="playAudio('translated_A')"></i>
-                </div>
-                <div class="translation-column">
+                </div> -->
+                <!-- <div class="translation-column">
                     <h3 class="translated-header">Translated by Model B</h3>
                     <div id="translated_content_B" class="translated-text-box" readonly>
                         <p style="color: green; font-weight: bold;">Model B is going to be updated soon! Stay tuned!</p>
-                        <!-- Translated text by Model B will be dynamically inserted here -->
+                        Translated text by Model B will be dynamically inserted here
                     </div>
-                </div>
+                </div> -->
             </div>
 
-            <div id="feedback_options" class="feedback-options">
+            <!-- <div id="feedback_options" class="feedback-options">
                 <button id="optionA" class="feedback-btn">A is better</button>
                 <button id="optionB" class="feedback-btn">B is better</button>
                 <button id="optionC" class="feedback-btn">Tie</button>
                 <button id="optionD" class="feedback-btn">Both are bad</button>
-            </div>
+            </div> -->
             <!-- Feedback Form Section -->
+            <br></br>
+            <br></br>
+
             <form id="feedbackForm">
                 <textarea id="feedback" name="feedback" rows="4" placeholder="Enter your feedback here..."></textarea><br>
                 <input type="submit" value="Submit Feedback">
@@ -223,66 +231,66 @@
     </style>
 
     <script>
-        var dropZone = document.getElementById('drop_zone');
-        var fileInput = document.getElementById('file_input');
+        // var dropZone = document.getElementById('drop_zone');
+        // var fileInput = document.getElementById('file_input');
 
-        dropZone.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            dropZone.style.backgroundColor = "#E3F2FD";
-        }, false);
+        // dropZone.addEventListener('dragover', function(e) {
+        //     e.preventDefault();
+        //     dropZone.style.backgroundColor = "#E3F2FD";
+        // }, false);
 
-        dropZone.addEventListener('dragleave', function(e) {
-            e.preventDefault();
-            dropZone.style.backgroundColor = "transparent";
-        }, false);
+        // dropZone.addEventListener('dragleave', function(e) {
+        //     e.preventDefault();
+        //     dropZone.style.backgroundColor = "transparent";
+        // }, false);
 
-        dropZone.addEventListener('drop', function(e) {
-            e.preventDefault();
-            dropZone.style.backgroundColor = "transparent";
-            if (e.dataTransfer.items) {
-                // Use DataTransferItemList interface to access the file(s)
-                if (e.dataTransfer.items[0].kind === 'file') {
-                    var file = e.dataTransfer.items[0].getAsFile();
-                    fileInput.files = e.dataTransfer.files;
-                    dropZone.textContent = `Uploaded file: ${file.name}`; // Display the file name
-                }
-            } else {
-                // Use DataTransfer interface to access the file(s)
-                fileInput.files = e.dataTransfer.files;
-                dropZone.textContent = `Uploaded file: ${e.dataTransfer.files[0].name}`; // Display the file name
-            }
-            // Trigger file input change event
-            fileInput.dispatchEvent(new Event('change'));
-        }, false);
+        // dropZone.addEventListener('drop', function(e) {
+        //     e.preventDefault();
+        //     dropZone.style.backgroundColor = "transparent";
+        //     if (e.dataTransfer.items) {
+        //         // Use DataTransferItemList interface to access the file(s)
+        //         if (e.dataTransfer.items[0].kind === 'file') {
+        //             var file = e.dataTransfer.items[0].getAsFile();
+        //             fileInput.files = e.dataTransfer.files;
+        //             dropZone.textContent = `Uploaded file: ${file.name}`; // Display the file name
+        //         }
+        //     } else {
+        //         // Use DataTransfer interface to access the file(s)
+        //         fileInput.files = e.dataTransfer.files;
+        //         dropZone.textContent = `Uploaded file: ${e.dataTransfer.files[0].name}`; // Display the file name
+        //     }
+        //     // Trigger file input change event
+        //     fileInput.dispatchEvent(new Event('change'));
+        // }, false);
 
-        document.getElementById('textInputForm').addEventListener('submit', function(e) {
-            e.preventDefault(); // Prevent default form submission
-            const formData = new FormData(this);
-            const textInput = document.getElementById('text_input').value;
-            const fileInput = document.getElementById('file_input').files.length;
+//         document.getElementById('textInputForm').addEventListener('submit', function(e) {
+//             e.preventDefault(); // Prevent default form submission
+//             const formData = new FormData(this);
+//             const textInput = document.getElementById('text_input').value;
+//             const fileInput = document.getElementById('file_input').files.length;
 
-            if (textInput || fileInput) {
-                document.getElementById('loadingSpinner').style.display = 'block';
-                document.getElementById('thinkingMessage').style.display = 'block';
+//             if (textInput || fileInput) {
+//                 document.getElementById('loadingSpinner').style.display = 'block';
+//                 document.getElementById('thinkingMessage').style.display = 'block';
 
-                fetch('/translate_and_insert', {
-                    method: 'POST',
-                    body: formData,
-                })
-                .then(response => response.json())
-                .then(data => {
-                    console.log(data);
-                    document.getElementById('translated_content_A').innerHTML = `<p>${data.translated_text}</p>`;
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                })
-                .finally(() => {
-                    document.getElementById('loadingSpinner').style.display = 'none';
-                    document.getElementById('thinkingMessage').style.display = 'none';
-        });
-    }
-});
+//                 fetch('/translate_and_insert', {
+//                     method: 'POST',
+//                     body: formData,
+//                 })
+//                 .then(response => response.json())
+//                 .then(data => {
+//                     console.log(data);
+//                     document.getElementById('translated_content_A').innerHTML = `<p>${data.translated_text}</p>`;
+//                 })
+//                 .catch(error => {
+//                     console.error('Error:', error);
+//                 })
+//                 .finally(() => {
+//                     document.getElementById('loadingSpinner').style.display = 'none';
+//                     document.getElementById('thinkingMessage').style.display = 'none';
+//         });
+//     }
+// });
 
     // Event listener for Excel file translation
     document.getElementById('excelForm').addEventListener('submit', function(e) {
@@ -353,65 +361,65 @@
     });
 
            // Flag to indicate whether the event listener has been added
-           let isEventListenerAdded = false;
+let isEventListenerAdded = false;
 
-// Flags to track if audio is currently playing
-let originalAudioPlaying = false;
-let translatedAAudioPlaying = false;
+// // Flags to track if audio is currently playing
+// let originalAudioPlaying = false;
+// let translatedAAudioPlaying = false;
 
-function playAudio(type) {
-    let text, language;
-    if (type === 'original') {
-        text = document.getElementById('text_input').value;
-        language = document.getElementById('language').value;
-        if (!originalAudioPlaying) {
-            originalAudioPlaying = true;
-            synthesizeSpeech(text, language, 'original');
-        }
-    } else if (type === 'translated_A') {
-        text = document.getElementById('translated_content_A').innerText;
-        language = document.getElementById('language').value;
-        if (!translatedAAudioPlaying) {
-            translatedAAudioPlaying = true;
-            synthesizeSpeech(text, language, 'translated_A');
-        }
-    }
-}
+// function playAudio(type) {
+//     let text, language;
+//     if (type === 'original') {
+//         text = document.getElementById('text_input').value;
+//         language = document.getElementById('language').value;
+//         if (!originalAudioPlaying) {
+//             originalAudioPlaying = true;
+//             synthesizeSpeech(text, language, 'original');
+//         }
+//     } else if (type === 'translated_A') {
+//         text = document.getElementById('translated_content_A').innerText;
+//         language = document.getElementById('language').value;
+//         if (!translatedAAudioPlaying) {
+//             translatedAAudioPlaying = true;
+//             synthesizeSpeech(text, language, 'translated_A');
+//         }
+//     }
+// }
 
-function synthesizeSpeech(text, language, type) {
-    fetch('/synthesize_speech', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ text: text, language: language }),
-    })
-    .then(response => response.json())
-    .then(data => {
-        const audioUrl = `/audio/${data.filename}`;
-        const audio = new Audio(audioUrl);
-        audio.play().catch(e => console.error("Error playing the audio:", e));
-        audio.onended = function() {
-            if (type === 'original') {
-                originalAudioPlaying = false;
-            } else if (type === 'translated_A') {
-                translatedAAudioPlaying = false;
-            }
-        };
-    })
-    .catch(error => console.error('Error:', error));
-}
+// function synthesizeSpeech(text, language, type) {
+//     fetch('/synthesize_speech', {
+//         method: 'POST',
+//         headers: {
+//             'Content-Type': 'application/json',
+//         },
+//         body: JSON.stringify({ text: text, language: language }),
+//     })
+//     .then(response => response.json())
+//     .then(data => {
+//         const audioUrl = `/audio/${data.filename}`;
+//         const audio = new Audio(audioUrl);
+//         audio.play().catch(e => console.error("Error playing the audio:", e));
+//         audio.onended = function() {
+//             if (type === 'original') {
+//                 originalAudioPlaying = false;
+//             } else if (type === 'translated_A') {
+//                 translatedAAudioPlaying = false;
+//             }
+//         };
+//     })
+//     .catch(error => console.error('Error:', error));
+// }
 
-// Function to add the event listener if it hasn't been added already
-function addEventListenerIfNeeded() {
-    if (!isEventListenerAdded) {
-        var originalSpeakerIcon = document.getElementById('original_speaker');
-        originalSpeakerIcon.addEventListener('click', function() { playAudio('original'); });
-        var translatedSpeakerIconA = document.getElementById('translated_speaker_A');
-        translatedSpeakerIconA.addEventListener('click', function() { playAudio('translated_A'); });
-        isEventListenerAdded = true;
-    }
-}
+// // Function to add the event listener if it hasn't been added already
+// function addEventListenerIfNeeded() {
+//     if (!isEventListenerAdded) {
+//         var originalSpeakerIcon = document.getElementById('original_speaker');
+//         originalSpeakerIcon.addEventListener('click', function() { playAudio('original'); });
+//         var translatedSpeakerIconA = document.getElementById('translated_speaker_A');
+//         translatedSpeakerIconA.addEventListener('click', function() { playAudio('translated_A'); });
+//         isEventListenerAdded = true;
+//     }
+// }
 
 // Call this function when your page loads or when it's appropriate to add the event listener
 addEventListenerIfNeeded();
